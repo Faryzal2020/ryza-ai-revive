@@ -209,7 +209,7 @@
            throw, and "asset index failed" was the only clue even when the real
            cause was a wiring call. boot_smoke asserts this is null. */
         App._bootError = e;
-        App.toast('素材索引加载失败：' + e.message, true);
+        App.toast((window.I18n && I18n.t ? I18n.t('toast.assetIndexFail') : '素材索引加载失败：') + e.message, true);
       });
     },
 
@@ -793,7 +793,7 @@
           var f = crfFile.files && crfFile.files[0];
           crfFile.value = '';
           if (!f) return;
-          App.toast('导入中…');
+          App.toast(I18n.t('toast.importing'));
           CrfStore.importZip(f).then(function (v) {
             return CrfStore.get(v.id).then(function (rec) {
               var base = Avatar.skinsIndex || [];
@@ -801,10 +801,10 @@
               Avatar.skinsIndex = base;
               Config.set('state.skin', v.id);
               App.renderSkins();
-              App.toast('已导入：' + v.id);
+              App.toast(I18n.t('toast.imported') + v.id);
             });
           }).catch(function (e) {
-            App.toast('导入失败：' + e.message, true);
+            App.toast(I18n.t('toast.importFail') + e.message, true);
           });
         };
       }
@@ -812,15 +812,15 @@
       if (crfRm) {
         crfRm.onclick = function () {
           var list = CrfStore.list();
-          if (!list.length) { App.toast('没有导入的服装'); return; }
+          if (!list.length) { App.toast(I18n.t('skin.noImported')); return; }
           var last = list[list.length - 1];
           CrfStore.remove(last.id).then(function () {
             Avatar.skinsIndex = (Avatar.skinsIndex || []).filter(function (x) {
               return x.id !== last.id;
             });
             App.renderSkins();
-            App.toast('已移除：' + last.id);
-          }).catch(function (e) { App.toast('移除失败：' + e.message, true); });
+            App.toast(I18n.t('toast.removed') + last.id);
+          }).catch(function (e) { App.toast(I18n.t('toast.removeFail') + e.message, true); });
         };
       }
       var peopleBtn = document.getElementById('btn-world-people');
@@ -840,7 +840,7 @@
         });
       };
       document.getElementById('btn-settings-reset').onclick = function () {
-        if (confirm('恢复所有设置为默认值？')) {
+        if (confirm(I18n.t('settings.resetAsk'))) {
           Config.reset(); App.buildSettings(); App.buildCharaForm();
           App.toast(I18n.t('toast.saved'));
         }
@@ -1172,7 +1172,7 @@
       var btn = document.getElementById('btn-world-mode');
       if (btn) {
         var label = btn.querySelector('span');
-        if (label) label.textContent = (m === 'map') ? '列表' : '地图';
+        if (label) label.textContent = (m === 'map') ? I18n.t('world.list') : I18n.t('world.map');
       }
       App.renderWorld();
     },
@@ -1941,9 +1941,9 @@
 
     /* 重播上一段语音（从缓存取，不重新合成）。 */
     replayLastVoice: function () {
-      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast('没有可重播的语音'); return; }
+      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast(I18n.t('toast.noReplay')); return; }
       VoiceCache.urlFor(App._lastVoiceKey).then(function (url) {
-        if (!url) { App.toast('这段语音已不在缓存里'); return; }
+        if (!url) { App.toast(I18n.t('toast.voiceExpired')); return; }
         var a = App.audio;
         if (!a) return;
         try {
@@ -1952,15 +1952,15 @@
           a.play().catch(function () {});
           Avatar.setTalking(true);
           a.onended = function () { Avatar.setTalking(false); try { URL.revokeObjectURL(url); } catch (e) {} };
-        } catch (e) { App.toast('重播失败'); }
-      }).catch(function () { App.toast('重播失败'); });
+        } catch (e) { App.toast(I18n.t('toast.replayFail')); }
+      }).catch(function () { App.toast(I18n.t('toast.replayFail')); });
     },
 
     /* 收藏 / 取消收藏上一段语音（收藏的片段不会被字节预算逐出） */
     favLastVoice: function () {
-      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast('没有可收藏的语音'); return; }
+      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast(I18n.t('toast.noFav')); return; }
       var on = VoiceCache.toggleFav(App._lastVoiceKey);
-      App.toast(on ? '已收藏这段语音' : '已取消收藏');
+      App.toast(on ? I18n.t('toast.favOn') : I18n.t('toast.favOff'));
     },
 
     /* Shared end-of-audio bookkeeping. The rate reset is not cosmetic: ASMR
@@ -2358,7 +2358,7 @@
         },
         onOk: function (body) {
           var time = (body.querySelector('#f-alarm-time').value || '').slice(0, 5);
-          if (!/^\d{2}:\d{2}$/.test(time)) { App.toast('请填写时间', true); return false; }
+          if (!/^\d{2}:\d{2}$/.test(time)) { App.toast(I18n.t('alarm.fillTime'), true); return false; }
           var type = body.querySelector('#f-alarm-type').value;
           var style = body.querySelector('#f-alarm-style').value;
           var days = [];
@@ -2441,7 +2441,7 @@
           el.innerHTML = '<div class="card-title"><span class="tag' +
             (m.who === 'ryza' ? '' : ' leaf') + ' t-who"></span></div>' +
             '<div class="card-sub t-text"></div>';
-          el.querySelector('.t-who').textContent = m.who === 'ryza' ? 'ライザ' : '你';
+          el.querySelector('.t-who').textContent = m.who === 'ryza' ? 'ライザ' : I18n.tc('chara.you', '你');
           el.querySelector('.t-text').textContent = m.text;
           root.appendChild(el);
         });

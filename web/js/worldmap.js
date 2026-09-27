@@ -450,7 +450,7 @@
       sheet.className = 'wmp-sheet';
       var head = document.createElement('div');
       head.className = 'wmp-sheet-head';
-      head.textContent = '選擇區域';
+      head.textContent = (global.I18n && I18n.t) ? I18n.t('world.selectArea') : 'Select Area';
       sheet.appendChild(head);
 
       var grid = document.createElement('div');
@@ -470,7 +470,7 @@
         if (isHere) {
           var badge = document.createElement('span');
           badge.className = 'wmp-acard-badge';
-          badge.textContent = '目前位置';
+          badge.textContent = (global.I18n && I18n.t) ? I18n.t('world.current') : 'Current location';
           card.appendChild(badge);
         }
         if (locked) {

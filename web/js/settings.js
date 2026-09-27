@@ -41,7 +41,7 @@
       App._title(w, T('settings.llm'));
       App._field(w, T('settings.baseUrl'), Config.section('llm').baseUrl,
         function (v) { Config.set('llm.baseUrl', v); },
-        { hint: 'OpenAI 兼容地址，以 /v1 结尾；也可放 config/providers.json 自动水合' });
+        { hint: T('settings.baseUrl.hint') });
       var models = App._llmModels || [];
       if (models.length) {
         var cur = Config.section('llm').model || '';
@@ -266,14 +266,14 @@
       if (Config.section('tts').mode === 'clone') {
         App._field(w, T('settings.model'), Config.section('tts').modelClone,
           function (v) { Config.set('tts.modelClone', v); },
-          { hint: '克隆通道使用的模型 id（服务端提供，如 MiMo 的声音克隆模型）' });
+          { hint: T('settings.cloneModel.hint') });
         App._field(w, T('settings.refAudio'), Config.section('tts').reference,
           function (v) { Config.set('tts.reference', v); },
-          { hint: '必须是 wav 或 mp3；APK 里的原声是 m4a，需先转码' });
+          { hint: T('settings.refAudio.hint') });
       } else if (Config.section('tts').mode === 'preset') {
         App._field(w, T('settings.model'), Config.section('tts').modelPreset,
           function (v) { Config.set('tts.modelPreset', v); },
-          { hint: '预设音色通道使用的模型 id（服务端提供）' });
+          { hint: T('settings.presetModel.hint') });
         App._field(w, T('settings.presetVoice'), Config.section('tts').presetVoice,
           function (v) { Config.set('tts.presetVoice', v); });
       }
@@ -550,12 +550,12 @@
     _testLlm: function () {
       var llm = Config.section('llm');
       if (!llm.apiKey) { App.toast(I18n.t('toast.needKey'), true); return; }
-      App.toast('测试中…');
+      App.toast(I18n.t('toast.testing'));
       /* stand-alone: testing the endpoint must not supersede (and so silently
          discard) a reply the player is waiting for. */
       Api.chat([], '短く一言、あいさつして。', { mode: 'chat', style: 'text', standalone: true })
         .then(function (r) { App.toast('OK：' + r.text); })
-        .catch(function (e) { App.toast('失败：' + e.message, true); });
+        .catch(function (e) { App.toast(I18n.t('toast.fail') + e.message, true); });
     },
 
     _testTts: function () {
@@ -569,14 +569,14 @@
       if (!cred.capabilities.local && cred.id !== 'fish' && Api.isPlaceholderModel(model)) {
         App.toast(I18n.t('toast.needModel'), true); return;
       }
-      App.toast('合成中…');
+      App.toast(I18n.t('toast.synth'));
       /* no explicit mode → Api.speak uses the live talk mode, so this
          doubles as a preview of the per-mode voice direction. */
       Api.speak('やあ、聞こえてる？').then(function (url) {
-        if (!url) { App.toast('语音已关闭'); return; }
+        if (!url) { App.toast(I18n.t('toast.voiceOff')); return; }
         App.playUrl(url);
         App.toast('OK');
-      }).catch(function (e) { App.toast('失败：' + e.message, true); });
+      }).catch(function (e) { App.toast(I18n.t('toast.fail') + e.message, true); });
     },
 
     buildCharaForm: function () {
@@ -585,7 +585,7 @@
       var T = function (k) { return I18n.t(k); };
       var c = Config.section('chara'), p = Config.section('profile');
 
-      App._title(w, 'ライザ（キャラ設定）');
+      App._title(w, T('chara.ryzaTitle'));
       App._field(w, T('chara.personality'), c.personality,
         function (v) { Config.set('chara.personality', v); });
       App._field(w, T('chara.likes'), c.likes,
@@ -599,7 +599,7 @@
       App._field(w, T('chara.extra'), c.extra,
         function (v) { Config.set('chara.extra', v); }, { multi: true });
 
-      App._title(w, 'あなた（プレイヤー設定）');
+      App._title(w, T('chara.playerTitle'));
       App._field(w, T('onb.name'), p.name,
         function (v) { Config.set('profile.name', v); });
       App._field(w, T('onb.birthday'), p.birthday,
