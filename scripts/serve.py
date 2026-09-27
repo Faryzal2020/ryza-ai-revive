@@ -26,6 +26,8 @@ PROVIDERS = ROOT / "config" / "providers.json"
 # 8765 is the documented dev port; RYZA_PORT exists so a test can bind a free
 # one instead of fighting a dev server that is already running.
 PORT = int(os.environ.get("RYZA_PORT") or 8765)
+DATA_CONFIG = ROOT / "data-config"
+STORAGE_FILE = DATA_CONFIG / "settings.json"
 # Cloudflare (opencode.ai etc.) returns 1010 for the default Python-urllib UA.
 UA = "RyzaChat/1.2.22"
 
@@ -74,6 +76,18 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/_proxy":
             self._proxy_get(parsed)
             return
+        if path == "/api/storage":
+            if STORAGE_FILE.is_file():
+                raw = STORAGE_FILE.read_bytes()
+            else:
+                raw = b"{}"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(raw)
+            return
         if path == "/config/providers.json" and PROVIDERS.is_file():
             raw = PROVIDERS.read_bytes()
             self.send_response(200)
@@ -84,6 +98,12 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(raw)
             return
         return SimpleHTTPRequestHandler.do_GET(self)
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        SimpleHTTPRequestHandler.end_headers(self)
 
     def _proxy_get(self, parsed):
         """GET /_proxy?u=<https url> — forwards a GET (Qwen TTS returns
@@ -135,8 +155,28 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/storage":
+            n = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(n) if n else b"{}"
+            try:
+                json.loads(body.decode("utf-8"))
+                DATA_CONFIG.mkdir(parents=True, exist_ok=True)
+                tmp = STORAGE_FILE.with_suffix(".json.tmp")
+                tmp.write_bytes(body)
+                tmp.replace(STORAGE_FILE)
+                resp = b'{"ok":true}'
+                self.send_response(200)
+            except Exception as e:
+                resp = json.dumps({"error": str(e)}).encode("utf-8")
+                self.send_response(400)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(resp)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(resp)
+            return
         if parsed.path != "/_proxy":
-            self.send_error(404, "use POST /_proxy")
+            self.send_error(404, "not found")
             return
         target = (parse_qs(parsed.query).get("u") or [""])[0]
         if not proxy_target_allowed(target):

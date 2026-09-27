@@ -183,6 +183,9 @@
       L.push('日本語で話すこと。');
     } else {
       L.push('セリフ本文は必ず「' + langName(outLang) + '」で書くこと（ライザらしい元気な口調を' + langName(outLang) + 'でも維持）。');
+      if (outLang === 'en') {
+        L.push('Reply strictly in English (do not mix in Chinese or Japanese in speech).');
+      }
       L.push('地名や人名は' + langName(outLang) + '表記を基本に、必要なら日本語を併記してよい。');
       L.push('先頭のタグ行と <state> は英キーのまま。');
     }
@@ -319,8 +322,8 @@
     var dest = { emotion: null, attitude: null, nsfw: null, stage: null, tod: null, advance: null };
     var body = String(text || '').replace(/^\uFEFF/, '').trim();
     body = body.replace(/^```[\w-]*\s*\n?/, '').replace(/\n```\s*$/, '').trim();
-    body = body.replace(/^<think\b[^>]*>[\s\S]*?<\/think>\s*/i, '');
-    body = body.replace(/^<reasoning\b[^>]*>[\s\S]*?<\/reasoning>\s*/i, '');
+    body = body.replace(/^<think\b[^>]*>[\s\S]*?(?:<\/think>|$)\s*/i, '');
+    body = body.replace(/^<reasoning\b[^>]*>[\s\S]*?(?:<\/reasoning>|$)\s*/i, '');
     var n = 0;
     while (n++ < 3 && body.charAt(0) === '[') {
       var end = body.indexOf(']');

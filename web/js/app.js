@@ -84,8 +84,15 @@
     /* Applies data-i18n attributes in a subtree. Lives here (not in i18n.js)
        because walking the DOM is presentation; i18n.js stays a pure table. */
     applyI18n: function (root) {
-      (root || document).querySelectorAll('[data-i18n]').forEach(function (el) {
+      var r = root || document;
+      r.querySelectorAll('[data-i18n]').forEach(function (el) {
         el.textContent = I18n.t(el.getAttribute('data-i18n'));
+      });
+      r.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+        el.placeholder = I18n.t(el.getAttribute('data-i18n-placeholder'));
+      });
+      r.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+        el.title = I18n.t(el.getAttribute('data-i18n-title'));
       });
     },
 
@@ -450,6 +457,12 @@
     enterGame: function (fromOnboard) {
       var bar = document.getElementById('input-bar');
       if (bar) bar.classList.remove('spot');
+      var skipBtn = document.getElementById('btn-tut-skip');
+      if (skipBtn) skipBtn.classList.add('hidden');
+      var ls = document.getElementById('log-sub');
+      if (ls) ls.classList.remove('tut');
+      App._inTutorial = false;
+      App.updateHud();
       var st = Config.section('state');
       Sound.setPlace(st.stage, st.tod, World.backgroundFor(st.stage));
       Sound.setRoute('talk');
@@ -1294,6 +1307,15 @@
     _bindOverlays: function () {
       document.getElementById('onb-next').onclick = function () { Onboarding.next(); };
       document.getElementById('onb-skip').onclick = function () { Onboarding.skip(); };
+      var tutSkip = document.getElementById('btn-tut-skip');
+      if (tutSkip) tutSkip.onclick = function (e) {
+        e.stopPropagation();
+        if (window.Onboarding) Onboarding.skipTutorial();
+      };
+      var bubble = document.getElementById('bubble');
+      if (bubble) bubble.addEventListener('click', function () {
+        if (App._inTutorial && window.Onboarding) Onboarding.tutorialAdvance();
+      });
       document.getElementById('overlay-prologue').onclick = function () { Onboarding.prologueNext(); };
       document.getElementById('ring-dismiss').onclick = function () { App._dismissAlarm(); };
       document.getElementById('ring-snooze').onclick = function () { App._snoozeAlarm(); };

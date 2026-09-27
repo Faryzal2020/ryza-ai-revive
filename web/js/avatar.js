@@ -110,6 +110,7 @@
     host: null,
     avatar: null,
     scene: null,
+    sofa: null,
     gesture: null,
     postureCam: null,
     sceneConfig: null,
@@ -266,6 +267,16 @@
       }
       Avatar.scene = makeLayer(Avatar.host);
       Avatar.avatar = makeLayer(Avatar.host);
+      Avatar.sofa = makeLayer(Avatar.host);
+      Avatar._loadSpine(Avatar.sofa,
+        'assets/spine/objects/obj_001/obj_001.skel',
+        'assets/spine/objects/obj_001/obj_001.atlas',
+        function (err) {
+          if (!err && Avatar.sofa && Avatar.sofa.skeleton) {
+            Avatar.sofa.skeleton.setToSetupPose();
+          }
+        }
+      );
       window.addEventListener('resize', function () { Avatar.resize(); });
       if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', function () { Avatar.resize(); });
@@ -308,7 +319,7 @@
         host.canvas.height = bh;
       }
       if (host.gl) host.gl.viewport(0, 0, bw, bh);
-      [Avatar.scene, Avatar.avatar].forEach(function (L) {
+      [Avatar.scene, Avatar.avatar, Avatar.sofa].forEach(function (L) {
         if (!L) return;
         L.cssW = w; L.cssH = h; L.dpr = dpr;
       });
@@ -1013,6 +1024,11 @@
     _seatedOnMid: function () {
       return Avatar._loadedPosture() === 'posture_sitting' &&
              Avatar._midBind && Avatar._midBind.name;
+    },
+
+    _shouldDrawSofa: function () {
+      return Avatar._loadedPosture() === 'posture_sitting' &&
+             Avatar._midBind && Avatar._midBind.name === 'sofa_root';
     },
 
     /* Bind-pose world of the midground seat (sofa_root). Source
@@ -2959,6 +2975,19 @@
            on the 4000×5400 stage makes far layers shimmer every frame. */
         Avatar.scene.skeleton.updateWorldTransform(spine.Physics.none);
       }
+      if (Avatar.sofa && Avatar.sofa.ready && Avatar.sofa.skeleton) {
+        if (Avatar._shouldDrawSofa()) {
+          var sofaBone = Avatar.scene && Avatar.scene.skeleton && Avatar.scene.skeleton.findBone('sofa_root');
+          if (sofaBone) {
+            Avatar.sofa.skeleton.x = sofaBone.worldX;
+            Avatar.sofa.skeleton.y = sofaBone.worldY;
+            Avatar.sofa.skeleton.scaleX = sofaBone.scaleX;
+            Avatar.sofa.skeleton.scaleY = sofaBone.scaleY;
+          }
+          Avatar.sofa.skeleton.update(dt);
+          Avatar.sofa.skeleton.updateWorldTransform(spine.Physics.none);
+        }
+      }
       if (Avatar.avatar && Avatar.avatar.ready && Avatar.avatar.skeleton) {
         /* Place first, then one Physics.update. A second Physics.none pass
            discarded the simulated pose every frame and made actions jitter. */
@@ -3227,6 +3256,9 @@
       host.shader.setUniformi(spine.Shader.SAMPLER, 0);
       host.shader.setUniform4x4f(spine.Shader.MVP_MATRIX, host.mvp.values);
       Avatar._drawLayer(Avatar.scene);
+      if (Avatar._shouldDrawSofa() && Avatar.sofa && Avatar.sofa.ready) {
+        Avatar._drawLayer(Avatar.sofa);
+      }
 
       if (hide) {
         host.shader.unbind();

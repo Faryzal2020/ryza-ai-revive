@@ -23,6 +23,7 @@ const { spawn, execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const SERVE = process.env.RYZA_SERVE_PY || path.join(ROOT, 'scripts', 'serve.py');
+const PYTHON = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 let failures = 0;
 const bad = (m) => { failures++; console.log('  FAIL ' + m); };
 const ok = (c, m) => { if (c) console.log('  PASS ' + m); else bad(m); };
@@ -88,7 +89,7 @@ function get(port, query, extra) {
     '         "http://127.0.0.1:80@evil.com/"]',
     'print(json.dumps({c: m.proxy_target_allowed(c) for c in cases}))'
   ].join('\n');
-  const matrix = JSON.parse(execFileSync('python', ['-c', probe, SERVE], { encoding: 'utf8' }));
+  const matrix = JSON.parse(execFileSync(PYTHON, ['-c', probe, SERVE], { encoding: 'utf8' }));
 
   const want = {
     'https://api.example.com/v1': true,
@@ -177,8 +178,8 @@ function get(port, query, extra) {
   });
   await new Promise((r) => upstream.listen(upstreamPort, '127.0.0.1', r));
 
-  const srv = spawn('python', [SERVE], {
-    cwd: ROOT, env: Object.assign({}, process.env, { RYZA_PORT: String(proxyPort) }),
+  const srv = spawn(PYTHON, [SERVE], {
+    cwd: ROOT, env: Object.assign({}, process.env, { RYZA_PORT: String(proxyPort), NO_PROXY: "*", no_proxy: "*" }),
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let boot = '';

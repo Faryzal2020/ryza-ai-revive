@@ -352,11 +352,12 @@
         function (v) { Config.set('app.vibration', v); });
       App._switch(w, T('settings.rim'), Config.section('app').rim !== false,
         function (v) { Config.set('app.rim', v); });
-      /* NSFW 是「用户授权」，不是角色扮演开关：关着的时候模型说什么都不脱。
-         闸门在 nsfw.js，这里只管写 Config.app.nsfwEnabled。
-         设置页要能在无宿主环境下独立加载，所以先问 window。 */
-      App._switch(w, T('settings.nsfw'), !!(window.Nsfw && Nsfw.enabled()),
+      var nsfwRow = App._switch(w, T('settings.nsfw'), !!(window.Nsfw && Nsfw.enabled()),
         function (v) { if (window.Nsfw) Nsfw.setEnabled(v); });
+      var nsfwHint = document.createElement('div');
+      nsfwHint.className = 'hint';
+      nsfwHint.textContent = T('settings.nsfwHint');
+      w.appendChild(nsfwHint);
       App._switch(w, T('settings.stt'), Config.section('app').stt !== 'off',
         function (v) {
           /* 'on' going forward; an old save holding 'webSpeech' also means on,
@@ -493,14 +494,33 @@
       var bImp = document.createElement('button');
       bImp.className = 'btn'; bImp.textContent = T('settings.import');
       bImp.onclick = function () {
-        var txt = prompt('粘贴配置 JSON');
+        var txt = prompt(T('settings.importPrompt') || '粘贴配置 JSON');
         if (!txt) return;
         try { Config.importJSON(txt); Settings.buildSettings(); Settings.buildCharaForm();
               App.toast(I18n.t('toast.saved')); }
-        catch (e) { App.toast('配置解析失败：' + e.message, true); }
+        catch (e) { App.toast((T('settings.importFail') || '配置解析失败：') + e.message, true); }
       };
       row2.appendChild(bExp); row2.appendChild(bImp);
       w.appendChild(row2);
+
+      var rowOnb = document.createElement('div');
+      rowOnb.className = 'btn-row';
+      var bReplay = document.createElement('button');
+      bReplay.className = 'btn'; bReplay.textContent = T('settings.replayTutorial');
+      bReplay.onclick = function () {
+        if (window.Onboarding) {
+          Onboarding.replayTutorial();
+        }
+      };
+      var bRestartOnb = document.createElement('button');
+      bRestartOnb.className = 'btn'; bRestartOnb.textContent = T('settings.restartOnboarding');
+      bRestartOnb.onclick = function () {
+        Config.set('state.onboardingDone', false);
+        location.reload();
+      };
+      rowOnb.appendChild(bReplay);
+      rowOnb.appendChild(bRestartOnb);
+      w.appendChild(rowOnb);
 
       /* local_save_data_eraser.dart equivalent. */
       var bErase = document.createElement('button');
