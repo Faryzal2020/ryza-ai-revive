@@ -296,6 +296,10 @@
       'toast.synth': '合成中…',
       'toast.voiceOff': '语音已关闭',
       'toast.fail': '失败：',
+      'hud.place': '所在地', 'hud.tod': '时段',
+      'nsfw.on': '特殊服饰 (NSFW) 已开启', 'nsfw.off': '已恢复常规服饰',
+      'talk.didNotHear': '（……没太听清。能再说一遍吗？）',
+      'talk.history': '对话记录',
     },
 
     ja: {
@@ -587,6 +591,10 @@
       'toast.synth': '音声合成中…',
       'toast.voiceOff': '音声はオフです',
       'toast.fail': '失敗：',
+      'hud.place': '現在地', 'hud.tod': '時間帯',
+      'nsfw.on': '特殊衣装 (NSFW) を有効にしました', 'nsfw.off': '通常の衣装に戻しました',
+      'talk.didNotHear': '（……うまく聞こえなかった。もう一回言って？）',
+      'talk.history': '会話履歴',
     },
 
     en: {
@@ -878,6 +886,10 @@
       'toast.synth': 'Synthesizing…',
       'toast.voiceOff': 'Voice is off',
       'toast.fail': 'Failed: ',
+      'hud.place': 'Location', 'hud.tod': 'Time of day',
+      'nsfw.on': 'NSFW mode enabled', 'nsfw.off': 'Normal outfit restored',
+      'talk.didNotHear': '(...I didn\'t quite catch that. Could you say that again?)',
+      'talk.history': 'Chat history',
     }
   };
 
@@ -1972,7 +1984,11 @@
     'item.bottle': '回復藥（草豆）',
     'input.hint': '點一下，和萊莎聊天', 'input.wake': '點一下叫醒萊莎',
     'toast.guide': '這裡是萊莎的夢中世界。',
-    'toast.story': '你與萊莎的故事，終於要開始了。'
+    'toast.story': '你與萊莎的故事，終於要開始了。',
+    'hud.place': '所在地', 'hud.tod': '時段',
+    'nsfw.on': '已開啟特殊服裝 (NSFW)', 'nsfw.off': '已恢復常規服裝',
+    'talk.didNotHear': '（……沒太聽清。能再說一遍嗎？）',
+    'talk.history': '對話紀錄'
   };
   Object.keys(ZH_TW_VERBATIM).forEach(function (k) { T['zh-tw'][k] = ZH_TW_VERBATIM[k]; });
 

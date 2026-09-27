@@ -119,7 +119,7 @@ input,select,textarea{font:inherit;color:inherit}
 .side-item .round img{width:20px;height:20px;display:block;
   filter:invert(88%) sepia(22%) saturate(500%) hue-rotate(330deg)}
 .side-item .round.gold{background:linear-gradient(150deg,rgba(232,180,92,.92),rgba(201,143,60,.88))}
-.side-item .round.gold img{filter:none}
+.side-item .round.gold img{filter:brightness(0) invert(1)}
 
 /* ----------------------------------------------------------- drawer */
 /* Electron frameless shell: drag the window by the HUD strip; every
@@ -173,6 +173,13 @@ body.boot #topbar > #winctl{display:flex;pointer-events:auto;
 #view-talk>*{pointer-events:auto}
 .view-head{display:flex;align-items:center;gap:10px;padding:8px 16px 12px;
   border-bottom:1px solid var(--line);background:var(--panel)}
+.view-back-btn{display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;padding:0;border-radius:9px;border:1px solid var(--line);
+  background:rgba(232,180,92,.08);color:var(--fg);cursor:pointer;flex-shrink:0;
+  transition:.15s ease}
+.view-back-btn:hover{background:rgba(232,180,92,.22);border-color:var(--gold);color:var(--gold)}
+.view-back-btn:active{transform:scale(.94)}
+.view-back-btn svg{display:block}
 .view-head h2{margin:0;font-size:17px;font-weight:700;letter-spacing:.05em;white-space:nowrap}
 .head-actions{margin-left:auto;display:flex;gap:8px;align-items:center;min-width:0;flex-wrap:nowrap}
 #view-world .view-head{gap:6px;padding:8px 10px 10px}
@@ -237,16 +244,16 @@ body.side-open #quick-btns{opacity:0;pointer-events:none;transition:opacity .15s
   font-size:13px;font-weight:700;color:var(--ink);transition:.15s;flex:0 0 auto}
 .round-btn:active{transform:scale(.92)}
 .round-btn img{width:20px;height:20px;display:block;
-  filter:invert(88%) sepia(22%) saturate(500%) hue-rotate(330deg)}
+  filter:brightness(0) invert(1)}
 
 /* conversation log panel — the official bottom sheet: avatar + name + mode
    description, the line itself, page dots. Replaces the old floating bubble
    (which walled off the stage and faded itself away). */
 #log-panel{position:absolute;left:0;right:0;bottom:0;height:var(--panel-h);z-index:15;
   display:flex;flex-direction:column;padding:0 16px calc(6px + var(--safe-b));
-  background:linear-gradient(180deg,rgba(10,7,12,.88),rgba(10,7,12,.94) 30%,rgba(10,7,12,.96));
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-  border-top:1px solid rgba(232,180,92,.16);pointer-events:auto;
+  background:linear-gradient(180deg,rgba(10,7,12,.45),rgba(10,7,12,.50) 30%,rgba(10,7,12,.55));
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border-top:1px solid rgba(232,180,92,.22);pointer-events:auto;
   transition:height .22s ease}
 /* Collapsed (official: ⇧ hides the conversation area down to the input row —
    the whole stage opens up; the shipped screenshots' menu shots are this
@@ -254,7 +261,7 @@ body.side-open #quick-btns{opacity:0;pointer-events:none;transition:opacity .15s
    the panel edge. The official collapsed strip KEEPS the last line above the
    input (see the sitting reference shot) — head/dots go, one text line stays. */
 #phone.panel-collapsed{--panel-h:calc(128px + var(--safe-b))}
-#phone.panel-collapsed #log-panel{background:linear-gradient(0deg,rgba(10,7,12,.86),transparent);
+#phone.panel-collapsed #log-panel{background:linear-gradient(0deg,rgba(10,7,12,.50),transparent);
   border-top:0;backdrop-filter:none;-webkit-backdrop-filter:none;padding-top:0}
 #phone.panel-collapsed #log-head,
 #phone.panel-collapsed #log-dots{display:none}
@@ -309,13 +316,13 @@ body.side-open #quick-btns{opacity:0;pointer-events:none;transition:opacity .15s
 #input-bar{display:flex;gap:9px;align-items:center;padding:8px 0 2px;flex:0 0 auto}
 .speed-btn{width:44px;height:44px;font-size:13.5px}
 .input-pill{flex:1;display:flex;align-items:center;min-width:0;
-  background:rgba(24,17,21,.88);border:1px solid var(--line);border-radius:999px;
-  padding:0 6px 0 16px;transition:.15s}
-.input-pill:focus-within{border-color:var(--gold);background:rgba(30,21,26,.95)}
+  background:rgba(24,17,21,.55);border:1px solid var(--line);border-radius:999px;
+  padding:0 6px 0 16px;transition:.15s;backdrop-filter:blur(6px)}
+.input-pill:focus-within{border-color:var(--gold);background:rgba(30,21,26,.75)}
 #input{flex:1;min-width:0;background:none;border:0;padding:12px 0;font-size:15px;
   outline:none;user-select:text}
 #btn-newtalk{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
-#btn-newtalk img{width:17px;height:17px;filter:invert(80%) sepia(30%) saturate(500%) hue-rotate(330deg)}
+#btn-newtalk img{width:17px;height:17px;filter:brightness(0) invert(1)}
 /* Voice input. Uses the pack's own voicetoggle.svg (no invented artwork), and
    is the one control whose state must be readable at a glance: listening pulses,
    blocked (she is talking / cooldown) goes quiet rather than disappearing. */
@@ -380,7 +387,13 @@ body.side-open #quick-btns{opacity:0;pointer-events:none;transition:opacity .15s
 .empty{text-align:center;color:#6d5f57;padding:40px 20px;font-size:13.5px;line-height:1.8}
 
 /* ----------------------------------------------------------- skins */
-#skin-grid{flex:1;overflow:auto;padding:14px;display:grid;gap:12px;
+.skin-toolbar{display:flex;align-items:center;justify-content:space-between;margin:12px 14px 4px;
+  padding:12px 16px;background:rgba(26,18,22,.85);border:1px solid var(--line);border-radius:var(--radius);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.25);flex:0 0 auto}
+.skin-toolbar-info{display:flex;flex-direction:column;gap:3px;margin-right:12px}
+.skin-toolbar-label{font-size:13.5px;font-weight:600;color:var(--gold);letter-spacing:.02em}
+.skin-toolbar-hint{font-size:11px;color:var(--dim);line-height:1.4}
+#skin-grid{flex:1;overflow:auto;padding:12px 14px 24px;display:grid;gap:12px;
   grid-template-columns:repeat(auto-fill,minmax(140px,1fr));align-content:start}
 .skin-card{background:rgba(26,18,22,.82);border:1px solid var(--line);border-radius:var(--radius);
   overflow:hidden;cursor:pointer;transition:.15s}
@@ -409,7 +422,7 @@ body.side-open #quick-btns{opacity:0;pointer-events:none;transition:opacity .15s
   border-bottom:1px solid rgba(232,180,92,.12)}
 .switch-row:last-child{border-bottom:0}
 .switch{width:46px;height:26px;border-radius:999px;background:#3a2a30;position:relative;
-  transition:.18s;flex:0 0 auto}
+  transition:.18s;flex:0 0 auto;cursor:pointer;user-select:none}
 .switch.on{background:var(--gold)}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
   background:#f6ecdf;transition:.18s}
@@ -456,12 +469,25 @@ body.side-open #quick-btns{opacity:0;pointer-events:none;transition:opacity .15s
 
 .hud-chip{cursor:pointer}
 
+#sheet-scrim{position:absolute;inset:0;z-index:165;background:rgba(0,0,0,.5);
+  backdrop-filter:blur(2px);opacity:1;transition:opacity .2s ease;pointer-events:auto}
+#sheet-scrim.hidden{display:none;opacity:0;pointer-events:none}
+
 .sheet{position:absolute;left:0;right:0;bottom:0;z-index:170;background:var(--panel-2);
   margin:0 auto;max-width:min(600px,100%);   /* stay readable on a wide desktop window */
   border-top:1px solid var(--line);border-radius:18px 18px 0 0;padding:8px 14px calc(16px + var(--safe-b));
   box-shadow:0 -12px 40px rgba(0,0,0,.45);animation:pop .2s ease;max-height:70%;overflow:auto}
 .sheet.hidden{display:none}
-.sheet-handle{width:40px;height:4px;border-radius:99px;background:var(--line);margin:4px auto 10px}
+.sheet-handle{width:40px;height:4px;border-radius:99px;background:var(--line);margin:4px auto 10px;cursor:pointer}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.sheet-head h3{margin:0;font-size:15px;flex:1}
+.sheet-close-btn{display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;padding:0;border-radius:50%;border:1px solid var(--line);
+  background:rgba(255,255,255,.07);color:var(--dim);cursor:pointer;flex-shrink:0;
+  transition:.15s ease}
+.sheet-close-btn:hover{background:rgba(232,180,92,.2);border-color:var(--gold);color:var(--gold)}
+.sheet-close-btn:active{transform:scale(.92)}
+.sheet-close-btn svg{display:block}
 .sheet h3{margin:0 0 10px;font-size:15px}
 #mode-bar{flex-wrap:wrap}
 

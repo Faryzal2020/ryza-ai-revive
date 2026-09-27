@@ -704,15 +704,16 @@
       /* tapping her name/subtitle opens the mode sheet (mode lives there now) */
       var logHead = document.getElementById('log-head');
       if (logHead) logHead.onclick = function () {
-        document.getElementById('sheet-mode').classList.toggle('hidden');
+        var isHidden = document.getElementById('sheet-mode').classList.contains('hidden');
+        if (isHidden) App.openSheet('sheet-mode'); else App.closeSheets();
       };
       ['hud-stamina', 'hud-money', 'hud-level'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.onclick = function () { App.renderStatus(); document.getElementById('sheet-status').classList.remove('hidden'); };
+        if (el) el.onclick = function () { App.renderStatus(); App.openSheet('sheet-status'); };
       });
       document.getElementById('btn-bag').onclick = function () {
-        App.renderInv();
-        document.getElementById('sheet-inv').classList.toggle('hidden');
+        var isHidden = document.getElementById('sheet-inv').classList.contains('hidden');
+        if (isHidden) { App.renderInv(); App.openSheet('sheet-inv'); } else { App.closeSheets(); }
       };
       document.querySelectorAll('#inv-tabs [data-bag]').forEach(function (b) {
         b.onclick = function () {
@@ -852,17 +853,48 @@
       return !!(v && v.classList.contains('active'));
     },
 
+    closeSheets: function () {
+      ['sheet-mode', 'sheet-inv', 'sheet-status', 'sheet-npc', 'sheet-lang'].forEach(function (id) {
+        var s = document.getElementById(id);
+        if (s) s.classList.add('hidden');
+      });
+      var scrim = document.getElementById('sheet-scrim');
+      if (scrim) scrim.classList.add('hidden');
+    },
+
+    openSheet: function (id) {
+      App.closeSheets();
+      var s = document.getElementById(id);
+      if (s) {
+        s.classList.remove('hidden');
+        var scrim = document.getElementById('sheet-scrim');
+        if (scrim) scrim.classList.remove('hidden');
+      }
+    },
+
+    toggleNsfw: function (targetVal) {
+      if (!window.Nsfw) return;
+      var next = typeof targetVal === 'boolean' ? targetVal : !Nsfw.enabled();
+      Nsfw.setEnabled(next);
+      if (next && window.Avatar && Avatar.postureKey && Avatar.postureKey() === 'posture_sitting') {
+        App.setPosture('posture_standing');
+      }
+      if (window.Sound) Sound.se('skin_change');
+      App.toast(next ? (I18n.t('nsfw.on') || 'NSFW mode enabled') : (I18n.t('nsfw.off') || 'Normal outfit restored'));
+      App.syncNsfwSwitches();
+    },
+
+    syncNsfwSwitches: function () {
+      var active = window.Nsfw ? Nsfw.enabled() : false;
+      var skinToggle = document.getElementById('skin-nsfw-toggle');
+      if (skinToggle) skinToggle.classList.toggle('on', active);
+    },
+
     showView: function (name) {
       document.querySelectorAll('.view').forEach(function (v) {
         v.classList.toggle('active', v.id === 'view-' + name);
       });
-      document.getElementById('sheet-mode').classList.add('hidden');
-      document.getElementById('sheet-inv').classList.add('hidden');
-      document.getElementById('sheet-status').classList.add('hidden');
-      var npcSheet = document.getElementById('sheet-npc');
-      if (npcSheet) npcSheet.classList.add('hidden');
-      var langSheet = document.getElementById('sheet-lang');
-      if (langSheet) langSheet.classList.add('hidden');
+      App.closeSheets();
       if (name === 'world') {
         Welcome.milestone('map');   /* local milestone: the official board has no map mission */
         Sound.setRoute('world');
@@ -871,7 +903,11 @@
         Sound.setRoute('talk');
       }
       if (name === 'memory') App.renderMemory();
-      if (name === 'skin') { Welcome.milestone('skin'); App.renderSkins(); }
+      if (name === 'skin') {
+        Welcome.milestone('skin');
+        App.renderSkins();
+        App.syncNsfwSwitches();
+      }
       if (name === 'welcome') Welcome.render(document.getElementById('welcome-body'));
       if (name === 'alarm') Welcome.milestone('alarm');
       if (name === 'quest') Quests.render(document.getElementById('quest-list'), {});
@@ -1346,9 +1382,41 @@
       };
       document.querySelectorAll('.sheet-handle').forEach(function (h) {
         h.onclick = function () {
-          var sheet = h.parentElement;
-          if (sheet) sheet.classList.add('hidden');
+          App.closeSheets();
         };
+      });
+      document.querySelectorAll('.sheet-close-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          App.closeSheets();
+        };
+      });
+      var sheetScrim = document.getElementById('sheet-scrim');
+      if (sheetScrim) {
+        sheetScrim.onclick = function () {
+          App.closeSheets();
+        };
+      }
+      document.querySelectorAll('.view-back-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          App.showView('talk');
+        };
+      });
+      var skinNsfwToggle = document.getElementById('skin-nsfw-toggle');
+      if (skinNsfwToggle) {
+        skinNsfwToggle.onclick = function () {
+          App.toggleNsfw();
+        };
+      }
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          var hasOpenSheet = ['sheet-mode', 'sheet-inv', 'sheet-status', 'sheet-npc', 'sheet-lang'].some(function (id) {
+            var s = document.getElementById(id);
+            return s && !s.classList.contains('hidden');
+          });
+          if (hasOpenSheet) {
+            App.closeSheets();
+          }
+        }
       });
     },
 

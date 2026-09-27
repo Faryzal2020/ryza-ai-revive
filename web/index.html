@@ -125,12 +125,17 @@
 </main>
 
 <section id="view-welcome" class="view">
-  <div class="view-head"><h2 data-i18n="wm.title">欢迎任务</h2></div>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="wm.title">欢迎任务</h2>
+  </div>
   <div id="welcome-body" class="form-wrap"></div>
 </section>
 
 <section id="view-world" class="view">
-  <div class="view-head"><h2 data-i18n="world.title">世界地图</h2>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="world.title">世界地图</h2>
     <div class="head-actions">
       <button class="mini-btn" id="btn-world-mode">🗺 <span>地图</span></button>
       <button class="mini-btn" id="btn-world-people">👥 <span data-i18n="world.people">此地の人</span></button>
@@ -148,34 +153,55 @@
 </section>
 
 <section id="view-quest" class="view">
-  <div class="view-head"><h2 data-i18n="quest.title">任务</h2>
-    <button class="mini-btn" id="btn-quest-new" data-i18n="quest.auto">让莱莎想一个</button></div>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="quest.title">任务</h2>
+    <button class="mini-btn" id="btn-quest-new" data-i18n="quest.auto">让莱莎想一个</button>
+  </div>
   <div id="quest-list" class="form-wrap"></div>
 </section>
 
 <section id="view-daily" class="view">
-  <div class="view-head"><h2 data-i18n="dl.title">每日登录</h2></div>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="dl.title">每日登录</h2>
+  </div>
   <div id="daily-body" class="form-wrap"></div>
 </section>
 
 <section id="view-alarm" class="view">
-  <div class="view-head"><h2 data-i18n="alarm.title">闹钟</h2>
-    <button class="mini-btn" id="btn-alarm-new">+ 新闹钟</button></div>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="alarm.title">闹钟</h2>
+    <button class="mini-btn" id="btn-alarm-new">+ 新闹钟</button>
+  </div>
   <div id="alarm-list"></div>
 </section>
 
 <section id="view-chara" class="view">
-  <div class="view-head"><h2 data-i18n="chara.title">角色设定</h2>
-    <button class="mini-btn" id="btn-chara-skin" data-i18n="nav.skin">服装</button></div>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="chara.title">角色设定</h2>
+    <button class="mini-btn" id="btn-chara-skin" data-i18n="nav.skin">服装</button>
+  </div>
   <div class="form-wrap" id="chara-form"></div>
 </section>
 
 <section id="view-skin" class="view">
-  <div class="view-head"><h2 data-i18n="skin.title">服装</h2>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="skin.title">服装</h2>
     <div class="head-actions">
       <button class="mini-btn" id="btn-crf-zip" title="导入服装 ZIP（atlas/png/skel/gesture 四件）">导入服装</button>
       <button class="mini-btn" id="btn-crf-remove" title="移除最后导入的服装">移除导入</button>
     </div>
+  </div>
+  <div class="skin-toolbar">
+    <div class="skin-toolbar-info">
+      <div class="skin-toolbar-label" data-i18n="settings.nsfw">特殊服饰 / NSFW (脱衣模式)</div>
+      <div class="skin-toolbar-hint" data-i18n="settings.nsfwHint">开启后立绘切换为特殊/清凉服饰（站立姿态生效）</div>
+    </div>
+    <div id="skin-nsfw-toggle" class="switch" role="button" tabindex="0" title="Toggle NSFW"></div>
   </div>
   <div id="skin-posture-hint" class="hint skin-hint"></div>
   <div id="skin-grid"></div>
@@ -183,7 +209,9 @@
 </section>
 
 <section id="view-memory" class="view">
-  <div class="view-head"><h2 data-i18n="memory.title">回忆</h2>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="memory.title">回忆</h2>
     <div class="head-actions">
       <button class="mini-btn" id="btn-memory-add" data-i18n="memory.add">添加</button>
       <button class="mini-btn" id="btn-memory-flush" data-i18n="memory.flush">立即总结</button>
@@ -194,8 +222,11 @@
 </section>
 
 <section id="view-settings" class="view">
-  <div class="view-head"><h2 data-i18n="settings.title">设置</h2>
-    <button class="mini-btn" id="btn-settings-reset">恢复默认</button></div>
+  <div class="view-head">
+    <button type="button" class="view-back-btn" title="Back" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 data-i18n="settings.title">设置</h2>
+    <button class="mini-btn" id="btn-settings-reset" data-i18n="settings.reset">恢复默认</button>
+  </div>
   <div class="form-wrap" id="settings-form"></div>
 </section>
 
@@ -212,9 +243,14 @@
   </form>
 </div>
 
+<div id="sheet-scrim" class="hidden"></div>
+
 <div id="sheet-mode" class="sheet hidden">
   <div class="sheet-handle"></div>
-  <h3 data-i18n="mode.sheet">对话模式</h3>
+  <div class="sheet-head">
+    <h3 data-i18n="mode.sheet">对话模式</h3>
+    <button type="button" class="sheet-close-btn" title="Close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
   <div id="mode-bar">
     <button class="mode-pill" data-mode="chat"><img src="assets/icons/mode_chat.svg" alt=""><span data-i18n="mode.chat">雑談</span></button>
     <button class="mode-pill" data-mode="story"><img src="assets/icons/mode_story.svg" alt=""><span data-i18n="mode.story">物語</span></button>
@@ -226,16 +262,19 @@
     <button class="mode-pill style" data-style="text"><span data-i18n="style.text">📝 文字</span></button>
   </div>
   <div class="sheet-scene">
-    <button type="button" class="hud-chip shrink" id="hud-place" title="所在地">ライザの家</button>
-    <button type="button" class="hud-chip" id="hud-tod" title="時間帯">昼</button>
-    <button type="button" class="hud-chip" id="hud-mode" title="対話モード">雑談</button>
-    <button type="button" class="icon-btn" id="btn-map" title="ワールドマップ"><img src="assets/icons/world_map.svg" alt=""></button>
+    <button type="button" class="hud-chip shrink" id="hud-place" title="所在地" data-i18n-title="hud.place">ライザの家</button>
+    <button type="button" class="hud-chip" id="hud-tod" title="時間帯" data-i18n-title="hud.tod">昼</button>
+    <button type="button" class="hud-chip" id="hud-mode" title="対话モード" data-i18n-title="mode.sheet">雑談</button>
+    <button type="button" class="icon-btn" id="btn-map" title="ワールドマップ" data-i18n-title="nav.world"><img src="assets/icons/world_map.svg" alt=""></button>
   </div>
 </div>
 
 <div id="sheet-inv" class="sheet hidden">
   <div class="sheet-handle"></div>
-  <h3 data-i18n="inv.title">道具</h3>
+  <div class="sheet-head">
+    <h3 data-i18n="inv.title">道具</h3>
+    <button type="button" class="sheet-close-btn" title="Close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
   <div id="inv-tabs" class="inv-tabs">
     <button class="mode-pill active" data-bag="you"><span data-i18n="inv.you">あなたのバッグ</span></button>
     <button class="mode-pill" data-bag="ryza"><span data-i18n="inv.ryza">ライザのバッグ</span></button>
@@ -249,19 +288,28 @@
 
 <div id="sheet-status" class="sheet hidden">
   <div class="sheet-handle"></div>
-  <h3 data-i18n="st.title">冒険ステータス</h3>
+  <div class="sheet-head">
+    <h3 data-i18n="st.title">冒険ステータス</h3>
+    <button type="button" class="sheet-close-btn" title="Close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
   <div id="status-body"></div>
 </div>
 
 <div id="sheet-npc" class="sheet hidden">
   <div class="sheet-handle"></div>
-  <h3 id="npc-sheet-title">この場所にいる人</h3>
+  <div class="sheet-head">
+    <h3 id="npc-sheet-title">この場所にいる人</h3>
+    <button type="button" class="sheet-close-btn" title="Close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
   <div id="npc-sheet-list"></div>
 </div>
 
 <div id="sheet-lang" class="sheet hidden">
   <div class="sheet-handle"></div>
-  <h3 data-i18n="nav.lang">语言</h3>
+  <div class="sheet-head">
+    <h3 data-i18n="nav.lang">语言</h3>
+    <button type="button" class="sheet-close-btn" title="Close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
   <div id="lang-list" class="lang-list"></div>
 </div>
 
@@ -279,8 +327,8 @@
     <p id="onb-sub" class="onb-sub"></p>
     <div id="onb-body"></div>
     <div class="btn-row">
-      <button type="button" class="btn" id="onb-skip">跳过</button>
-      <button type="button" class="btn primary" id="onb-next">下一步</button>
+      <button type="button" class="btn" id="onb-skip" data-i18n="onb.skip">跳过</button>
+      <button type="button" class="btn primary" id="onb-next" data-i18n="onb.next">下一步</button>
     </div>
   </div>
 </div>
