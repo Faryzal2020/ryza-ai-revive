@@ -497,7 +497,7 @@
         if (!txt) return;
         try { Config.importJSON(txt); Settings.buildSettings(); Settings.buildCharaForm();
               App.toast(I18n.t('toast.saved')); }
-        catch (e) { App.toast('配置解析失败：' + e.message, true); }
+        catch (e) { App.toast((I18n.t('toast.importFail') || 'Failed to parse config: ') + e.message, true); }
       };
       row2.appendChild(bExp); row2.appendChild(bImp);
       w.appendChild(row2);
@@ -530,12 +530,12 @@
     _testLlm: function () {
       var llm = Config.section('llm');
       if (!llm.apiKey) { App.toast(I18n.t('toast.needKey'), true); return; }
-      App.toast('测试中…');
+      App.toast(I18n.t('toast.testing'));
       /* stand-alone: testing the endpoint must not supersede (and so silently
          discard) a reply the player is waiting for. */
       Api.chat([], '短く一言、あいさつして。', { mode: 'chat', style: 'text', standalone: true })
-        .then(function (r) { App.toast('OK：' + r.text); })
-        .catch(function (e) { App.toast('失败：' + e.message, true); });
+        .then(function (r) { App.toast('OK: ' + (r.text || '')); })
+        .catch(function (e) { App.toast(I18n.t('toast.llmFail') + (e && e.message ? e.message : e), true); });
     },
 
     _testTts: function () {
@@ -549,14 +549,14 @@
       if (!cred.capabilities.local && cred.id !== 'fish' && Api.isPlaceholderModel(model)) {
         App.toast(I18n.t('toast.needModel'), true); return;
       }
-      App.toast('合成中…');
+      App.toast(I18n.t('toast.synthesizing'));
       /* no explicit mode → Api.speak uses the live talk mode, so this
          doubles as a preview of the per-mode voice direction. */
       Api.speak('やあ、聞こえてる？').then(function (url) {
-        if (!url) { App.toast('语音已关闭'); return; }
+        if (!url) { App.toast(I18n.t('toast.voiceOff')); return; }
         App.playUrl(url);
         App.toast('OK');
-      }).catch(function (e) { App.toast('失败：' + e.message, true); });
+      }).catch(function (e) { App.toast(I18n.t('toast.ttsFail') + (e && e.message ? e.message : e), true); });
     },
 
     buildCharaForm: function () {
@@ -565,7 +565,7 @@
       var T = function (k) { return I18n.t(k); };
       var c = Config.section('chara'), p = Config.section('profile');
 
-      App._title(w, 'ライザ（キャラ設定）');
+      App._title(w, T('chara.ryzaTitle') || 'ライザ（キャラ設定）');
       App._field(w, T('chara.personality'), c.personality,
         function (v) { Config.set('chara.personality', v); });
       App._field(w, T('chara.likes'), c.likes,
@@ -579,7 +579,7 @@
       App._field(w, T('chara.extra'), c.extra,
         function (v) { Config.set('chara.extra', v); }, { multi: true });
 
-      App._title(w, 'あなた（プレイヤー設定）');
+      App._title(w, T('chara.playerTitle') || 'あなた（プレイヤー設定）');
       App._field(w, T('onb.name'), p.name,
         function (v) { Config.set('profile.name', v); });
       App._field(w, T('onb.birthday'), p.birthday,

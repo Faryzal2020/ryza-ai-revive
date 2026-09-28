@@ -19,7 +19,7 @@
       model: 'gpt-4o-mini',
       apiKey: '',
       temperature: 0.9,
-      maxTokens: 400,
+      maxTokens: 1024,
       historyTurns: 12,
       contextWindow: 0,            // 0 = guess from model id / /v1/models
       thinking: 'auto',            // auto | off | on
@@ -114,11 +114,11 @@
 
     /* ---- character / persona (fed into the system prompt) ---- */
     chara: {
-      personality: '明るく前向き、少しおっちょこちょいな錬金術士',
-      likes: '調合、冒険、甘いもの',
-      dislikes: 'じっとしていること',
-      situation: 'クーケン島の自分の家で、君と一緒に過ごしている',
-      callMe: '君',
+      personality: 'Bright, positive, slightly clumsy alchemist',
+      likes: 'Synthesis, adventure, sweet treats',
+      dislikes: 'Staying still',
+      situation: 'Ryza found you collapsed in Pixie Forest and brought you to safety',
+      callMe: 'you',
       extra: ''
     },
 
@@ -134,7 +134,7 @@
 
     /* ---- presentation ---- */
     app: {
-      lang: 'zh',                    // zh | zh-tw | ja | en | hi | id | pt-br
+      lang: 'en',                    // zh | zh-tw | ja | en | hi | id | pt-br
       voice: true,
       volume: 0.9,
       textSpeed: 30,                 // ms per character (×1; see TEXT_SPEEDS)
@@ -159,7 +159,7 @@
       mode: 'chat',                  // chat | story | immersive | asmr | text
       style: 'voice',                // voice | text
       skin: 'crf_skn_002_0001',
-      stage: 'stage_01_001_04',      // ライザの家
+      stage: 'stage_01_002_03',      // 小妖精の森 - ランタン樹（Pixie Forest）
       tod: 'aft',                    // mor | aft | eve | ngt
       /* Standing (crf_skn_002_0001_99) is the default posture. Only scenes
          whose midgroundPostures lists BOTH postures honour the choice — in the
@@ -175,7 +175,9 @@
       gameClockAt: 0,
       todManualUntil: 0,
       onboardingDone: false,
-      welcome: { talk: false, map: false, alarm: false, skin: false, quest: false }
+      welcome: { talk: false, map: false, alarm: false, skin: false, quest: false },
+      ryza_present: true,
+      ryza_location: ''
     }
   };
 
@@ -187,7 +189,7 @@
       if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
       var v = patch[k];
       out[k] = (v && typeof v === 'object' && !Array.isArray(v) &&
-                base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]))
+        base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]))
         ? deepMerge(base[k], v) : v;
     }
     return out;
@@ -201,6 +203,10 @@
   }
   if (data.state && data.state.skin) {
     data.state.skin = String(data.state.skin).replace(/_(01|99)$/, '');
+  }
+  if (!data.state || !data.state.onboardingDone) {
+    if (data.app && data.app.lang === 'zh') data.app.lang = 'en';
+    if (data.state) data.state.stage = 'stage_01_002_03';
   }
   /* One-time migration: qwen got its own baseUrl/apiKey (they used to share
      the openai fields, which made provider switching send a MiMo URL/key to
@@ -244,7 +250,7 @@
     { v: 30, icon: 'text_speed_1x' },
     { v: 18, icon: 'text_speed_15x' },
     { v: 12, icon: 'text_speed_2x' },
-    { v: 8,  icon: 'text_speed_3x' }
+    { v: 8, icon: 'text_speed_3x' }
   ];
 
   var Config = {
@@ -273,7 +279,7 @@
       Config.save();
     },
     save: function () {
-      try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+      try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { }
     },
     reset: function () {
       data = deepMerge(DEFAULTS, {});
@@ -346,7 +352,7 @@
           }
         }
         Config.save();
-      }).catch(function () {});
+      }).catch(function () { });
       return Config._hydrated;
     }
   };

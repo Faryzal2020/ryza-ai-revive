@@ -192,8 +192,12 @@
       var q = qs[Onboarding.step];
       if (q) Onboarding._save(q);
       Onboarding.step++;
-      if (Onboarding.step >= qs.length) Onboarding._prologue();
-      else Onboarding._render();
+      if (Onboarding.step >= qs.length) {
+        Config.set('state.onboardingDone', true);
+        document.getElementById('overlay-onboard').classList.add('hidden');
+        document.getElementById('overlay-prologue').classList.add('hidden');
+        Onboarding._onDone && Onboarding._onDone();
+      } else Onboarding._render();
     },
 
     _save: function (q) {
@@ -216,63 +220,35 @@
       document.querySelectorAll('#onb-choices .chip.on').forEach(function (c) {
         picked.push(c.textContent);
       });
-      Config.set(q.field, picked.join('、'));
+      var sep = (window.I18n && (I18n.lang === 'zh' || I18n.lang === 'ja')) ? '、' : ', ';
+      Config.set(q.field, picked.join(sep));
     },
 
     _prologue: function () {
+      Config.set('state.onboardingDone', true);
       document.getElementById('overlay-onboard').classList.add('hidden');
-      var ov = document.getElementById('overlay-prologue');
-      ov.classList.remove('hidden');
-      if (window.Sound) Sound.setRoute('prologue');
-      Onboarding._proIdx = 1;
-      Onboarding._playPrologue();
+      document.getElementById('overlay-prologue').classList.add('hidden');
+      Onboarding._onDone && Onboarding._onDone();
     },
 
     _proIdx: 1,
 
-    _playPrologue: function () {
-      var n = Onboarding._proIdx;
-      var label = document.getElementById('pro-step');
-      var hint = document.getElementById('pro-hint');
-      label.textContent = n + ' / 9';
-      hint.textContent = I18n.t('onb.prologueHint');
-      /* Route through App.audio so the analyser graph (lip-sync RMS) is
-         attached; `force` keeps the prologue audible even with the voice
-         toggle off — it is core onboarding narration, not reply TTS. */
-      var src = Sound.prologue(n);
-      if (window.App && App.playFile) { App.playFile(src, null, true); return; }
-      if (Onboarding._audio) { try { Onboarding._audio.pause(); } catch (e) {} }
-      var a = new Audio(src);
-      Onboarding._audio = a;
-      a.volume = Number(Config.section('app').volume) || 0.9;
-      Avatar.setTalking && Avatar.setTalking(true);
-      a.onended = function () { Avatar.setTalking(false); };
-      a.play().catch(function () { Avatar.setTalking(false); });
-    },
+    _playPrologue: function () {},
 
     prologueNext: function () {
-      if (Onboarding._audio) { try { Onboarding._audio.pause(); } catch (e) {} }
-      if (window.App && App._pauseVoice) App._pauseVoice();
-      else Avatar.setTalking && Avatar.setTalking(false);
-      if (Onboarding._proIdx < 9) {
-        Onboarding._proIdx++;
-        Onboarding._playPrologue();
-      } else Onboarding._tutorial();
+      Config.set('state.onboardingDone', true);
+      document.getElementById('overlay-onboard').classList.add('hidden');
+      document.getElementById('overlay-prologue').classList.add('hidden');
+      Onboarding._onDone && Onboarding._onDone();
     },
 
     _tutIdx: 0,
 
     _tutorial: function () {
+      Config.set('state.onboardingDone', true);
+      document.getElementById('overlay-onboard').classList.add('hidden');
       document.getElementById('overlay-prologue').classList.add('hidden');
-      if (window.Sound) {
-        var st = Config.section('state');
-        Sound.setPlace(st.stage, st.tod, World.backgroundFor(st.stage));
-        Sound.setRoute('talk');
-      }
-      var bar = document.getElementById('input-bar');
-      if (bar) bar.classList.add('spot');
-      Onboarding._tutIdx = 0;
-      Onboarding._showTut();
+      Onboarding._onDone && Onboarding._onDone();
     },
 
     _showTut: function () {

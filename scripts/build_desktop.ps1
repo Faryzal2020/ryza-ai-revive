@@ -36,12 +36,31 @@ if (-not $env:RYZA_DIRECT) {
 
 if (-not (Test-Path "node_modules/electron/dist/electron.exe")) {
   npm install --registry=https://registry.npmmirror.com --no-audit --no-fund
-  node node_modules/electron/install.js
+  if (Test-Path "node_modules/electron/install.js") {
+    node node_modules/electron/install.js
+  }
 } else {
   "electron already present"
 }
 
-$BuildStart = Get-Date
+# winCodeSign-2.6.0.7z contains Darwin dylib symlinks that fail 7za extraction on Windows
+# without Developer Mode. If present in cache, ensure winCodeSign-2.6.0 is extracted cleanly.
+$wcsCache = Join-Path $env:LOCALAPPDATA "electron-builder/Cache/winCodeSign"
+$wcsTarget = Join-Path $wcsCache "winCodeSign-2.6.0"
+if (-not (Test-Path $wcsTarget) -and (Test-Path $wcsCache)) {
+  $wcs7z = Get-ChildItem (Join-Path $wcsCache "*.7z") -ErrorAction SilentlyContinue | Select-Object -First 1
+  $7za = Join-Path (Get-Location) "node_modules/7zip-bin/win/x64/7za.exe"
+  if ($wcs7z -and (Test-Path $7za)) {
+    & $7za x -snld -bd $wcs7z.FullName -xr!*dylib "-o$wcsTarget" | Out-Null
+  }
+}
+
+$skelCount = (Get-ChildItem -Path (Join-Path $Root "web/assets/spine") -Filter "*.skel" -Recurse -ErrorAction SilentlyContinue).Count
+if ($skelCount -eq 0) {
+  Write-Warning "No spine .skel models found in web/assets/spine! Characters and scenes will not render. Run 'python scripts/restore_media.py path/to/RyzaChat.apk' first to restore media before packaging."
+}
+
+$BuildStart = (Get-Date).AddSeconds(-15)
 npx electron-builder --win --x64 --publish never
 if ($LASTEXITCODE -ne 0) { throw "electron-builder failed" }
 

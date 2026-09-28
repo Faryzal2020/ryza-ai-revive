@@ -104,8 +104,18 @@
     var lines = body.split(/\r?\n/);
     var beats = [];
     var current = null;
+    var ryzaAbsent = false;
+    try {
+      if (global.Config && Config.section('state').ryza_present === false) {
+        ryzaAbsent = true;
+      }
+    } catch (e) {}
 
     function push(kind, id, label, chunk) {
+      if (current && current.speaker === kind && current.id === (id || '')) {
+        current.text = current.text ? (current.text + '\n' + chunk) : chunk;
+        return;
+      }
       if (current) beats.push(current);
       current = { speaker: kind, id: id || '', name: label || '', text: chunk || '' };
     }
@@ -126,7 +136,7 @@
         push('npc', id, nameOf(id, String(raw).trim()), line.replace(SPEAKER[3].re, ''));
         continue;
       }
-      push('ryza', '', '', line);
+      push(ryzaAbsent ? 'narrator' : 'ryza', '', '', line);
     }
     if (current) beats.push(current);
     return beats.filter(function (b) { return b.text.trim() !== ''; });
@@ -148,9 +158,9 @@
     hi: 'अनुवाद', id: 'Terjemahan', 'pt-br': 'Tradução'
   };
   function translationLabel() {
-    var lang = 'zh';
-    try { if (global.Langs && Langs.ui) lang = Langs.ui() || 'zh'; } catch (e) {}
-    return TRANS_LABEL[lang] || TRANS_LABEL.zh;
+    var lang = 'en';
+    try { if (global.Langs && Langs.ui) lang = Langs.ui() || 'en'; } catch (e) {}
+    return TRANS_LABEL[lang] || TRANS_LABEL.en;
   }
 
   function labelFor(beat) {

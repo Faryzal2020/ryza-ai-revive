@@ -87,6 +87,14 @@
       (root || document).querySelectorAll('[data-i18n]').forEach(function (el) {
         el.textContent = I18n.t(el.getAttribute('data-i18n'));
       });
+      (root || document).querySelectorAll('[data-i18n-title]').forEach(function (el) {
+        var t = I18n.t(el.getAttribute('data-i18n-title'));
+        if (t) el.setAttribute('title', t);
+      });
+      (root || document).querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+        var p = I18n.t(el.getAttribute('data-i18n-placeholder'));
+        if (p) el.setAttribute('placeholder', p);
+      });
     },
 
     _syncPanelFrac: function () {
@@ -116,7 +124,7 @@
 
     /* -------------------------------------------------------------- boot */
     init: function () {
-      I18n.setLang(Config.section('app').lang || 'zh');
+      I18n.setLang(Config.section('app').lang || 'en');
       App.applyI18n(document);
       var inpEl = document.getElementById('input');
       if (inpEl) inpEl.placeholder = I18n.tc('input.hint', inpEl.placeholder);
@@ -151,6 +159,9 @@
         Avatar.init(function () {
           App._loadSceneFor(st.stage, st.tod);
           App._tickTime();          // adopt the wall/flow clock once the scene is up
+          if (st.ryza_present === false) {
+            App.setRyzaPresent(false, false);
+          }
         });
         setInterval(App._tickTime, 30000);
         document.addEventListener('visibilitychange', function () {
@@ -202,7 +213,7 @@
            throw, and "asset index failed" was the only clue even when the real
            cause was a wiring call. boot_smoke asserts this is null. */
         App._bootError = e;
-        App.toast('素材索引加载失败：' + e.message, true);
+        App.toast((I18n.t('toast.indexFail') || 'Failed to load asset index: ') + e.message, true);
       });
     },
 
@@ -461,8 +472,30 @@
         App._showDisclosure();
         App._dailyNudge();
       }
+      if (App.history.length === 0 && (!App.memory || App.memory.length === 0)) {
+        App.startOpeningEncounter();
+        return;
+      }
       if (fromOnboard) return;
-      App.greet();
+      App._loadChatStream();
+    },
+
+    startOpeningEncounter: function () {
+      var llm = Config.section('llm');
+      if (llm && llm.apiKey) {
+        var cue = I18n.tc('opening.unconsciousCue',
+          (I18n.lang === 'ja'
+            ? '（森の奥で意識を失って倒れている。草を踏む足音が近づいてくる……）'
+            : '*You lie collapsed and unconscious on the forest path as footsteps approach...*'));
+        App.say(cue);
+      } else {
+        var msg = I18n.tc('opening.noKey',
+          (I18n.lang === 'ja'
+            ? '……えっ！？ 森の道端に誰か倒れてる……！？（設定でAPIキーを入力すると会話が始まります）'
+            : '...Wait, who is that collapsed over there in the forest...?! (Please set your API Key in Settings to begin!)'));
+        App.showBubble(msg);
+        if (window.Avatar && Avatar.setEmotion) Avatar.setEmotion('surprised', 'question');
+      }
     },
 
     _tickDay: function () {
@@ -695,7 +728,45 @@
       };
       ['hud-stamina', 'hud-money', 'hud-level'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.onclick = function () { App.renderStatus(); document.getElementById('sheet-status').classList.remove('hidden'); };
+        if (el) el.onclick = function () {
+          var sheet = document.getElementById('sheet-status');
+          if (sheet) {
+            if (sheet.classList.contains('hidden')) {
+              App.renderStatus();
+              sheet.classList.remove('hidden');
+            } else {
+              sheet.classList.add('hidden');
+            }
+          }
+        };
+      });
+      document.querySelectorAll('.sheet-close').forEach(function (btn) {
+        btn.onclick = function () {
+          var sheet = btn.closest('.sheet');
+          if (sheet) sheet.classList.add('hidden');
+        };
+      });
+      document.querySelectorAll('.sheet-handle').forEach(function (handle) {
+        handle.onclick = function () {
+          var sheet = handle.closest('.sheet');
+          if (sheet) sheet.classList.add('hidden');
+        };
+      });
+      window.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          if (window.RyzaShell && RyzaShell.handleBack) RyzaShell.handleBack();
+        }
+      });
+      document.addEventListener('click', function (e) {
+        var openSheet = document.querySelector('.sheet:not(.hidden)');
+        if (openSheet && !openSheet.contains(e.target)) {
+          var ign = ['hud-stamina', 'hud-money', 'hud-level', 'btn-bag', 'log-head', 'hud-mode', 'btn-world-people', 'side-menu', 'btn-menu'];
+          var isTrigger = ign.some(function (id) {
+            var el = document.getElementById(id);
+            return el && (el === e.target || el.contains(e.target));
+          });
+          if (!isTrigger) openSheet.classList.add('hidden');
+        }
       });
       document.getElementById('btn-bag').onclick = function () {
         App.renderInv();
@@ -779,7 +850,7 @@
           var f = crfFile.files && crfFile.files[0];
           crfFile.value = '';
           if (!f) return;
-          App.toast('导入中…');
+          App.toast(I18n.t('toast.importing'));
           CrfStore.importZip(f).then(function (v) {
             return CrfStore.get(v.id).then(function (rec) {
               var base = Avatar.skinsIndex || [];
@@ -787,10 +858,10 @@
               Avatar.skinsIndex = base;
               Config.set('state.skin', v.id);
               App.renderSkins();
-              App.toast('已导入：' + v.id);
+              App.toast((I18n.t('toast.imported') || 'Imported: ') + v.id);
             });
           }).catch(function (e) {
-            App.toast('导入失败：' + e.message, true);
+            App.toast((I18n.t('toast.importFail') || 'Import failed: ') + e.message, true);
           });
         };
       }
@@ -798,15 +869,15 @@
       if (crfRm) {
         crfRm.onclick = function () {
           var list = CrfStore.list();
-          if (!list.length) { App.toast('没有导入的服装'); return; }
+          if (!list.length) { App.toast(I18n.t('toast.noImportedSkin')); return; }
           var last = list[list.length - 1];
           CrfStore.remove(last.id).then(function () {
             Avatar.skinsIndex = (Avatar.skinsIndex || []).filter(function (x) {
               return x.id !== last.id;
             });
             App.renderSkins();
-            App.toast('已移除：' + last.id);
-          }).catch(function (e) { App.toast('移除失败：' + e.message, true); });
+            App.toast((I18n.t('toast.removedSkin') || 'Removed: ') + last.id);
+          }).catch(function (e) { App.toast((I18n.t('toast.removeFail') || 'Failed to remove: ') + e.message, true); });
         };
       }
       var peopleBtn = document.getElementById('btn-world-people');
@@ -927,12 +998,42 @@
       if (dd) dd.textContent = I18n.tf('drawer.days', '同伴 {n} 天', { n: (st.day || 1) });
       /* log panel identity line — official shows her name + the current
          mode's description under the avatar (e.g. ASMR: 耳元で震える声で) */
+      var isAbsent = (st.ryza_present === false);
       var ln = document.getElementById('log-name');
-      if (ln) ln.textContent = I18n.tc('chara.ryza', 'ライザ');
+      if (ln) ln.textContent = isAbsent ? (I18n.t('narrator.title') || 'Narrator') : I18n.tc('chara.ryza', 'ライザ');
       var ls = document.getElementById('log-sub');
-      if (ls) ls.textContent = I18n.t('mode.sub.' + st.mode) || I18n.t('mode.' + st.mode) || st.mode;
+      if (ls) {
+        ls.textContent = isAbsent
+          ? (I18n.t('state.alone') || 'Alone')
+          : (I18n.t('mode.sub.' + st.mode) || I18n.t('mode.' + st.mode) || st.mode);
+      }
+      var logAva = document.getElementById('log-avatar');
+      if (logAva) {
+        logAva.src = isAbsent ? 'assets/icons/mode_story.svg' : 'assets/images/chara_icons/ryza.png';
+      }
+      var inp = document.getElementById('input');
+      if (inp) {
+        inp.placeholder = isAbsent
+          ? (I18n.t('talk.inputAlone') || 'What will you do? Describe your action…')
+          : (I18n.t('talk.input') || 'Say something to Ryza…');
+      }
       App._syncSpeedBtn();
       App.refreshHud();
+    },
+
+    setRyzaPresent: function (present, notify) {
+      var prev = Config.section('state').ryza_present;
+      var cur = !!present;
+      Config.set('state.ryza_present', cur);
+      if (window.Avatar && Avatar.setHidden) {
+        Avatar.setHidden(!cur);
+      }
+      var ico = document.getElementById('ico-toggle-chara');
+      if (ico) ico.src = !cur ? 'assets/icons/chara_show.svg' : 'assets/icons/chara_hide.svg';
+      App.updateHud();
+      if (notify && prev !== undefined && prev !== cur) {
+        App.toast(I18n.t(cur ? 'toast.ryzaBack' : 'toast.ryzaLeft'));
+      }
     },
 
     /* RPG strip: apples (StaminaAppleRow) + coin + level. */
@@ -971,7 +1072,10 @@
       }));
       var npcs = World.npcsAt(stageId, st.day || 1);
       var names = Game.meetCharas(npcs, st.day);
-      if (names.length) Game.remember(names.join('、') + ' と出会った。');
+      if (names.length) {
+        var nSep = (window.I18n && (I18n.lang === 'zh' || I18n.lang === 'ja')) ? '、' : ', ';
+        Game.remember(window.I18n && I18n.tf ? I18n.tf('mem.met', 'Met {names}.', { names: names.join(nSep) }) : ('Met ' + names.join(nSep) + '.'));
+      }
       Quests.progressEvent('explore');
       App.showView('talk');
     },
@@ -984,7 +1088,7 @@
       Config.set('state.tod', tod);
       if (prev === 'ngt' && tod === 'mor' && s.stage === HOME_STAGE) {
         Game.refill();
-        Game.remember('安全なおうちでぐっすり眠った。');
+        Game.remember(window.I18n && I18n.t ? I18n.t('mem.sleptWell') : 'Had a sound sleep in the safe atelier.');
         App.toast(I18n.t('stamina.slept'));
       }
       App._loadSceneFor(s.stage, tod);
@@ -1041,6 +1145,10 @@
         App._sleepHome();
         return;
       }
+      if (d.ryza_present !== undefined && d.ryza_present !== null) {
+        var pres = (d.ryza_present === true || d.ryza_present === 'true' || d.ryza_present === 1 || d.ryza_present === 'present');
+        App.setRyzaPresent(pres, true);
+      }
       var raw = d.current_stage || d.stage || d.map_move || scene.current_stage;
       if (d.map_moved && !raw) raw = scene.current_stage;
       var s = Config.section('state');
@@ -1074,7 +1182,7 @@
       }
       if (fromTod === 'ngt' && nextTod === 'mor' && dest === HOME_STAGE) {
         Game.refill();
-        Game.remember('安全なおうちでぐっすり眠った。');
+        Game.remember(window.I18n && I18n.t ? I18n.t('mem.sleptWell') : 'Had a sound sleep in the safe atelier.');
         App.toast(I18n.t('stamina.slept'));
       }
       if (nextTod !== fromTod) Config.set('state.tod', nextTod);
@@ -1255,11 +1363,34 @@
       var go = function () {
         var text = input.value.trim();
         if (!text || App.speaking) return;
+        if (/^\/(solo|alone|leave|absent)$/i.test(text)) {
+          input.value = '';
+          App.setRyzaPresent(false, true);
+          return;
+        }
+        if (/^\/(ryza|here|present|back)$/i.test(text)) {
+          input.value = '';
+          App.setRyzaPresent(true, true);
+          return;
+        }
         input.value = '';
         App.say(text);
       };
       send.onclick = go;
       input.onkeydown = function (e) { if (e.key === 'Enter') go(); };
+      var expBtn = document.getElementById('btn-chat-expand');
+      if (expBtn) {
+        expBtn.onclick = function (e) {
+          e.stopPropagation();
+          var phone = document.getElementById('phone');
+          if (!phone) return;
+          phone.classList.remove('panel-collapsed');
+          var isExp = phone.classList.toggle('panel-expanded');
+          expBtn.textContent = isExp ? '⤡' : '⤢';
+          expBtn.title = isExp ? (I18n.t('talk.collapse') || 'Shrink chat') : (I18n.t('talk.expand') || 'Expand chat');
+          App._scrollLog();
+        };
+      }
       var hitEl = document.getElementById('avatar-hit');
       hitEl.onclick = function (ev) {
         /* A drag ends with a click event; the pointer is not a tap then. */
@@ -1354,7 +1485,7 @@
       App._loadSceneFor(HOME_STAGE, tod);
       Sound.setPlace(HOME_STAGE, tod, World.backgroundFor(HOME_STAGE));
       Game.refill();
-      Game.remember('安全なおうちでぐっすり眠った。');
+      Game.remember(window.I18n && I18n.t ? I18n.t('mem.sleptWell') : 'Had a sound sleep in the safe atelier.');
       document.getElementById('overlay-faint').classList.add('hidden');
       App.showView('talk');
       App.toast(I18n.t('stamina.slept'));
@@ -1362,7 +1493,7 @@
     },
 
     _onSailed: function () {
-      Game.remember('船でクーケン島を出航した！');
+      Game.remember(window.I18n && I18n.t ? I18n.t('mem.sailed') : 'Set sail from Kurken Island by boat!');
       App.toast(I18n.t('toast.sailed'));
       App.showView('world');
       App.renderWorld();
@@ -1507,6 +1638,8 @@
     _peopleBlock: function (st) {
       if (!window.World || !World.npcs) return '';
       var L = ['## この世界の人々（ライザ以外）'];
+      var isAbsent = (st.ryza_present === false);
+      L.push('- ライザの所在：' + (isAbsent ? 'ライザはこの場所にいません（外出中／不在）。プレイヤーは単独です。' : 'ライザはプレイヤーと同じ場所にいます。'));
       var here = World.npcsAt(st.stage, st.day || 1);
       L.push('- いま同じ場所にいる人：' +
         (here.length ? here.map(function (n) {
@@ -1618,6 +1751,8 @@
           App._pages = []; App._pageSel = -1;
           var dots = document.getElementById('log-dots');
           if (dots) dots.innerHTML = '';
+          var stream = document.getElementById('chat-stream');
+          if (stream) stream.innerHTML = '';
           var bub = document.getElementById('bubble');
           if (bub) bub.classList.remove('hidden');
           var bt = document.getElementById('bubble-text');
@@ -1653,6 +1788,7 @@
       if (retryBar) retryBar.classList.add('hidden');
       App.speaking = true;
       document.getElementById('btn-send').disabled = true;
+      App.appendChatRow('user', text, false);
       App.showTyping();
       Welcome.mark('talk');            /* official activity: app_launched x5 */
 
@@ -1680,14 +1816,25 @@
           App.speaking = false;
           if (window.Turn && Turn.finishTurn) Turn.finishTurn();
           document.getElementById('btn-send').disabled = false;
+          var replyText = reply && reply.text ? String(reply.text).trim() : '';
+          if (!replyText) {
+            replyText = '……';
+            if (!reply) reply = {};
+            reply.text = replyText;
+          }
           App.history.push({ role: 'user', content: text });
           App.remember('user', text);
-          App.remember('ryza', reply.text);
+          var who = (Config.section('state').ryza_present === false) ? 'narrator' : 'ryza';
+          App.remember(who, reply.text);
           try { if (window.Memory) Memory.ingest(text, reply.text); } catch (e) {}
 
           if (reply.state && typeof reply.state === 'object') {
             Game.applyDelta(reply.state, 'llm');
             App._applySceneDelta(reply.state);
+          }
+          /* Safety fail-safe: if at least 2 exchanges occurred and stage is still the forest, move to Atelier */
+          if (Config.section('state').stage === 'stage_01_002_03' && App.history.length >= 4) {
+            App.gotoStage('stage_01_001_04');
           }
           var cost = Game.turnCost(st.mode, st.style);
           Game.spend(cost, 'talk');
@@ -1808,9 +1955,19 @@
           if (i >= others.length) return;
           var b = others[i++];
           var lab = Npc.labelFor(b);
-          App.typeBubble(lab ? lab + '：' + b.text : b.text, next);
+          var who = (b.speaker === 'npc') ? (b.name || 'NPC') : b.speaker;
+          App.typeBubble(b.text, function () {
+            if (i < others.length) {
+              setTimeout(next, 900);
+            }
+          }, who);
         })();
       };
+
+      if (!mine) {
+        showOthers();
+        return;
+      }
 
       App.typeBubble(mine, function () {
         /* The typewriter runs at the player's text speed, and the player can
@@ -1831,7 +1988,7 @@
         } else {
           showOthers();
         }
-      });
+      }, 'ryza');
     },
 
     speakThen: function (text, emotion) {
@@ -1851,9 +2008,9 @@
 
     /* 重播上一段语音（从缓存取，不重新合成）。 */
     replayLastVoice: function () {
-      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast('没有可重播的语音'); return; }
+      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast(I18n.t('toast.noReplay')); return; }
       VoiceCache.urlFor(App._lastVoiceKey).then(function (url) {
-        if (!url) { App.toast('这段语音已不在缓存里'); return; }
+        if (!url) { App.toast(I18n.t('toast.notInCache')); return; }
         var a = App.audio;
         if (!a) return;
         try {
@@ -1862,15 +2019,15 @@
           a.play().catch(function () {});
           Avatar.setTalking(true);
           a.onended = function () { Avatar.setTalking(false); try { URL.revokeObjectURL(url); } catch (e) {} };
-        } catch (e) { App.toast('重播失败'); }
-      }).catch(function () { App.toast('重播失败'); });
+        } catch (e) { App.toast(I18n.t('toast.replayFail')); }
+      }).catch(function () { App.toast(I18n.t('toast.replayFail')); });
     },
 
     /* 收藏 / 取消收藏上一段语音（收藏的片段不会被字节预算逐出） */
     favLastVoice: function () {
-      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast('没有可收藏的语音'); return; }
+      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast(I18n.t('toast.noFav')); return; }
       var on = VoiceCache.toggleFav(App._lastVoiceKey);
-      App.toast(on ? '已收藏这段语音' : '已取消收藏');
+      App.toast(on ? I18n.t('toast.favOn') : I18n.t('toast.favOff'));
     },
 
     /* Shared end-of-audio bookkeeping. The rate reset is not cosmetic: ASMR
@@ -2050,60 +2207,126 @@
       }
     },
 
-    showTyping: function () {
+    appendChatRow: function (who, text, isTyping) {
       App._panelUp();
-      var b = document.getElementById('bubble');
-      var vig = document.getElementById('vignette');
-      if (b) {
-        b.classList.remove('hidden');
-        b.classList.add('typing', 'speaking');
+      var stream = document.getElementById('chat-stream');
+      if (!stream) return null;
+      var row = document.createElement('div');
+      var whoClass = (who === 'user') ? 'chat-user' :
+                     (who === 'narrator') ? 'chat-narrator' :
+                     (who === 'ryza') ? 'chat-ryza' : 'chat-npc';
+      row.className = 'chat-row ' + whoClass + (isTyping ? ' typing-row' : '');
+      if (isTyping) row.id = 'chat-typing';
+
+      if (who !== 'user') {
+        var author = document.createElement('div');
+        author.className = 'chat-author' + (who === 'narrator' ? ' narrator-author' : '');
+        author.textContent = (who === 'ryza') ? (I18n.tc ? I18n.tc('chara.ryza', 'Ryza') : 'Ryza') :
+                             (who === 'narrator') ? (I18n.t ? (I18n.t('narrator.title') || 'Narrator') : 'Narrator') :
+                             who;
+        row.appendChild(author);
       }
-      document.getElementById('bubble-text').innerHTML =
-        '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
-      if (vig) vig.classList.add('talk-glow');
-      App._inputHint(true);
+
+      var bub = document.createElement('div');
+      bub.className = 'chat-bubble chat-bubble-' + (who === 'user' ? 'user' : (who === 'narrator' ? 'narrator' : (who === 'ryza' ? 'ryza' : 'npc')));
+      if (isTyping) bub.classList.add('typing-bubble');
+
+      var span = document.createElement('span');
+      span.className = 'bubble-text';
+      if (isTyping) {
+        span.innerHTML = '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+      } else {
+        span.textContent = text || '';
+      }
+      bub.appendChild(span);
+      row.appendChild(bub);
+      stream.appendChild(row);
+      App._scrollLog();
+      return span;
     },
 
-    showBubble: function (text) {
-      App._panelUp();
+    _loadChatStream: function () {
+      var stream = document.getElementById('chat-stream');
+      if (!stream) return;
+      stream.innerHTML = '';
+      if (App.memory && App.memory.length) {
+        var recent = App.memory.slice(-25);
+        recent.forEach(function (m) {
+          App.appendChatRow(m.who || 'ryza', m.text || '', false);
+        });
+        App._scrollLog();
+      } else {
+        App.greet();
+      }
+    },
+
+    hideTyping: function () {
+      var t = document.getElementById('chat-typing');
+      if (t) t.remove();
       var vig = document.getElementById('vignette');
       if (vig) vig.classList.remove('talk-glow');
-      var b = document.getElementById('bubble');
-      if (b) b.classList.remove('typing', 'speaking', 'hidden');
-      if (Config.section('app').showBubble === false) return;
-      document.getElementById('bubble-text').textContent = text;
-      App._pushPage(text);
       App._inputHint(false);
     },
 
-    typeBubble: function (text, done) {
+    showTyping: function () {
       App._panelUp();
-      if (App._typeTimer) clearTimeout(App._typeTimer);
-      /* generation token: a second chain (retry/alarm while the first line is
-         still typing) kills the old one instead of interleaving writes */
-      var gen = ++App._typeGen;
-      var b = document.getElementById('bubble');
-      var span = document.getElementById('bubble-text');
+      App.hideTyping();
       var vig = document.getElementById('vignette');
-      if (b) {
-        b.classList.remove('hidden');
-        b.classList.remove('typing');
-        b.classList.add('speaking');
-      }
       if (vig) vig.classList.add('talk-glow');
+      App._inputHint(true);
+      var who = (Config.section('state').ryza_present === false) ? 'narrator' : 'ryza';
+      App.appendChatRow(who, '', true);
+    },
+
+    showBubble: function (text, who) {
+      App._panelUp();
+      App.hideTyping();
+      var vig = document.getElementById('vignette');
+      if (vig) vig.classList.remove('talk-glow');
+      who = who || (Config.section('state').ryza_present === false ? 'narrator' : 'ryza');
+      App.appendChatRow(who, text, false);
+      var bt = document.getElementById('bubble-text');
+      if (bt) bt.textContent = text;
+      App._inputHint(false);
+    },
+
+    typeBubble: function (text, done, who) {
+      App._panelUp();
+      App.hideTyping();
+      if (App._typeTimer) clearTimeout(App._typeTimer);
+      var gen = ++App._typeGen;
+      var vig = document.getElementById('vignette');
+      if (vig) vig.classList.add('talk-glow');
+
+      who = who || (Config.section('state').ryza_present === false ? 'narrator' : 'ryza');
+      var span = App.appendChatRow(who, '', false);
+      var bt = document.getElementById('bubble-text');
+      if (bt) bt.textContent = '';
+
       var speed = Config.textSpeed();
       var i = 0;
+      text = String(text || '');
+      if (!text.length) {
+        if (span) span.textContent = '';
+        if (bt) bt.textContent = '';
+        if (vig) vig.classList.remove('talk-glow');
+        App._inputHint(false);
+        done && done();
+        return;
+      }
       (function step() {
         if (gen !== App._typeGen) return;
         if (i >= text.length) {
-          if (b) b.classList.remove('speaking');
+          if (span) span.textContent = text;
+          if (bt) bt.textContent = text;
           if (vig) vig.classList.remove('talk-glow');
-          App._pushPage(text);
           App._inputHint(false);
           done && done();
           return;
         }
-        span.textContent = text.slice(0, ++i);
+        var cur = text.slice(0, ++i);
+        if (span) span.textContent = cur;
+        if (bt) bt.textContent = cur;
         App._scrollLog();
         App._typeTimer = setTimeout(step, speed);
       })();
@@ -2268,7 +2491,7 @@
         },
         onOk: function (body) {
           var time = (body.querySelector('#f-alarm-time').value || '').slice(0, 5);
-          if (!/^\d{2}:\d{2}$/.test(time)) { App.toast('请填写时间', true); return false; }
+          if (!/^\d{2}:\d{2}$/.test(time)) { App.toast(I18n.t('toast.enterTime'), true); return false; }
           var type = body.querySelector('#f-alarm-type').value;
           var style = body.querySelector('#f-alarm-style').value;
           var days = [];
@@ -2351,7 +2574,9 @@
           el.innerHTML = '<div class="card-title"><span class="tag' +
             (m.who === 'ryza' ? '' : ' leaf') + ' t-who"></span></div>' +
             '<div class="card-sub t-text"></div>';
-          el.querySelector('.t-who').textContent = m.who === 'ryza' ? 'ライザ' : '你';
+          el.querySelector('.t-who').textContent = m.who === 'ryza' ? (I18n.t ? I18n.t('chara.ryza') : 'Ryza')
+            : (m.who === 'narrator' ? (I18n.t ? I18n.t('narrator.title') : 'Narrator')
+            : (I18n.t ? I18n.t('chara.you') : 'You'));
           el.querySelector('.t-text').textContent = m.text;
           root.appendChild(el);
         });

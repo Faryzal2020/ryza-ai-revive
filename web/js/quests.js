@@ -266,7 +266,7 @@
       var reward = q.reward || { exp: 30, money: 20 };
       Game.addExp(reward.exp);
       Game.addMoney(reward.money);
-      Game.remember(TF('mem.cleared', '「{title}」をクリア！ +{exp}EXP / +{money}G',
+      Game.remember(TF('mem.cleared', 'Cleared "{title}"! +{exp}EXP / +{money}G',
         { title: Quests.titleOf(q), exp: reward.exp, money: reward.money }));
       var log = Game.s.flags.quest_log || [];
       log.push({ no: q.no, type: q.type, title: q.title, at: Date.now() });
@@ -626,10 +626,10 @@
   /* Official titles, verbatim: ja is the shipped wording, zh/en are our
      translations of those same strings. */
   var WM_MISSION_TEXT = {
-    mission_clear: { ja: 'ミッションを3つクリアしよう', zh: '完成 3 次任务', en: 'Achieve mission 3 times' },
-    touch: { ja: 'ライザを触ってみる', zh: '摸一下莱莎', en: 'Touch Ryza' },
-    talk: { ja: 'キャラと5回会話してみよう', zh: '与角色对话 5 次', en: 'Talk with a character 5 times' },
-    login_bonus: { ja: 'ログインボーナスを受け取ろう', zh: '领取登录奖励', en: 'Get a logged in bonus' }
+    mission_clear: { ja: 'ミッションを3つクリアしよう', zh: '完成 3 次任务', en: 'Clear 3 missions' },
+    touch: { ja: 'ライザを触ってみる', zh: '摸一下莱莎', en: 'Interact with Ryza' },
+    talk: { ja: 'キャラと5回会話してみよう', zh: '与角色对话 5 次', en: 'Talk with Ryza 5 times' },
+    login_bonus: { ja: 'ログインボーナスを受け取ろう', zh: '领取登录奖励', en: 'Claim login bonus' }
   };
 
   /* missions[] from masters_bundle, in official priority order (1..12). */
@@ -726,7 +726,7 @@
       Config.set('state.welcome_claimed', c);
       Game.addMoney(WM_GROUP_REWARD.money);
       Game.addExp(WM_GROUP_REWARD.exp);
-      Game.remember('ウェルカムミッション ' + g.title + ' クリア');
+      Game.remember(window.I18n && I18n.tf ? I18n.tf('wm.clearedMem', 'Welcome mission {title} cleared', { title: g.title }) : ('Welcome mission ' + g.title + ' cleared'));
       return WM_GROUP_REWARD;
     },
 
@@ -740,8 +740,7 @@
       root.appendChild(hero);
 
       var day = Welcome.dayCount();
-      var lang = 'zh';
-      try { lang = I18n.lang() || 'zh'; } catch (e) {}
+      var lang = (window.I18n && typeof I18n.lang === 'string') ? I18n.lang : 'en';
       var list = document.createElement('div');
       list.className = 'wm-groups';
 
@@ -756,8 +755,8 @@
         head.innerHTML = '<span class="wm-group-title"></span><span class="wm-group-day"></span>';
         head.querySelector('.wm-group-title').textContent = g.title;
         head.querySelector('.wm-group-day').textContent = open
-          ? (done ? '完成' : '进行中')
-          : ('第 ' + g.day + ' 天开放');
+          ? (done ? I18n.t('wm.done') : I18n.t('wm.inProgress'))
+          : I18n.tf('wm.dayOpen', 'Day {n}', { n: g.day });
         box.appendChild(head);
 
         var grid = document.createElement('div');
@@ -772,11 +771,11 @@
           tile.querySelector('.wm-base').src = 'assets/welcome_mission/' +
             (md ? 'tile_base_clear.svg' : (open ? 'tile_base_active.svg' : 'tile_base_locked.svg'));
           tile.querySelector('.wm-ico').src = 'assets/welcome_mission/' + WM_ICON[m.activity] + '.svg';
-          var txt = WM_MISSION_TEXT[m.activity] || { ja: m.id, zh: m.id };
-          tile.querySelector('.wm-cap').textContent = txt[lang] || txt.zh || txt.ja;
+          var txt = WM_MISSION_TEXT[m.activity] || { ja: m.id, zh: m.id, en: m.id };
+          tile.querySelector('.wm-cap').textContent = txt[lang] || txt.en || txt.zh || txt.ja;
           /* the official unlock_condition_value is exactly this need */
           tile.querySelector('.wm-prog').textContent = Math.min(got, m.need) + ' / ' + m.need;
-          tile.title = txt.ja;
+          tile.title = txt[lang] || txt.en || txt.ja;
           grid.appendChild(tile);
         });
         box.appendChild(grid);
@@ -784,7 +783,7 @@
         if (open && done && !Welcome.groupClaimed(g)) {
           var btn = document.createElement('button');
           btn.className = 'wm-claim';
-          btn.textContent = '受け取る';
+          btn.textContent = I18n.t('wm.claim');
           btn.onclick = function () {
             var r = Welcome.claimGroup(g);
             if (r) { Welcome.render(root); if (_present) { try { _present(r); } catch (e) {} } }
@@ -793,7 +792,7 @@
         } else if (Welcome.groupClaimed(g)) {
           var tag = document.createElement('div');
           tag.className = 'wm-claimed';
-          tag.textContent = '受け取り済み';
+          tag.textContent = I18n.t('wm.claimed');
           box.appendChild(tag);
         }
         list.appendChild(box);

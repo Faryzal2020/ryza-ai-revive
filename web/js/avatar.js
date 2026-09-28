@@ -1197,7 +1197,12 @@
         gP.then(function (g) {
           Avatar.gesture = g;
           Avatar._loadSpine(L, s.skel, s.atlas, function (err) {
-            if (err) { Avatar._notify(err.message, true); cb && cb(err); return; }
+            if (err) {
+              var tip = (window.I18n ? I18n.t('avatar.mediaMissing') : '') || 'Character assets (.skel/.png) missing. Run: python scripts/restore_media.py path/to/RyzaChat.apk';
+              Avatar._notify(tip, true);
+              cb && cb(err);
+              return;
+            }
             Avatar._loadedSkelId = s.id;
             Avatar._fxKey = '';
             Avatar._fxPick = null;
@@ -1263,7 +1268,13 @@
           return cfgP.then(function (cfg) {
             Avatar.sceneConfig = cfg;
             Avatar._loadSpine(L, entry.skel, entry.atlas, function (err) {
-              if (err) { cb && cb(err); return; }
+              var st0 = (window.Config && Config.section('state')) || {};
+              var outfit = st0.skin || (Avatar.skinsIndex && Avatar.skinsIndex[0] &&
+                                        Avatar.skinsIndex[0].id) || '';
+              if (err) {
+                Avatar.loadSkin(outfit, function () { cb && cb(err); });
+                return;
+              }
               /* Scene clips are only fade in/out (1s). Looping fade_in restarts
                  from transparent every second — that is the background flicker. */
               var fade = pickAnim(L.data, 'anm_fade_in') ||
@@ -1277,14 +1288,16 @@
               Avatar.resize();
               /* 默认皮肤的唯一来源是 Config 的 state.skin（它自己带默认值），
                  这里不再写第二遍字面量。 */
-              var st0 = (window.Config && Config.section('state')) || {};
-              var outfit = st0.skin || (Avatar.skinsIndex && Avatar.skinsIndex[0] &&
-                                        Avatar.skinsIndex[0].id) || '';
               Avatar.loadSkin(outfit, cb);
             });
           });
         })
-        .catch(function (e) { cb && cb(e); });
+        .catch(function (e) {
+          var st0 = (window.Config && Config.section('state')) || {};
+          var outfit = st0.skin || (Avatar.skinsIndex && Avatar.skinsIndex[0] &&
+                                    Avatar.skinsIndex[0].id) || '';
+          Avatar.loadSkin(outfit, function () { cb && cb(e); });
+        });
     },
 
     /* JSON stores mixes as percents (7.5, 100); the .skel already has 0–1.

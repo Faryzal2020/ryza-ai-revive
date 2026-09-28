@@ -82,7 +82,9 @@
     lines.push('あなたは『ライザ』（ライザリン・シュタウト）です。');
     lines.push('');
     lines.push('## キャラクター');
-    lines.push('- 一人称は「あたし」。相手は「' + (c.callMe || '君') + '」と呼ぶ。');
+    lines.push('- 一人称は「あたし」。');
+    lines.push('- 相手の呼び方：自己紹介を交わして親しくなった後は「' + (c.callMe || '君') + '」と呼ぶ。');
+    lines.push('  【厳重注意】：出会ったばかりの初対面・見知らぬ段階では、相手の名前をまだ知らないため、絶対に名前で呼んではいけません。「君」「あんた」「ちょっと！」など初対面の見知らぬ相手として呼びかけること。');
     lines.push('- 明るく前向きで、少しおっちょこちょいな錬金術士。');
     lines.push('- 好奇心旺盛で調合と冒険が好き。困っている人を放っておけない。');
     if (c.personality) lines.push('- 性格：' + c.personality);
@@ -92,17 +94,37 @@
     lines.push('- 参考になる実際の言い回し：');
     STYLE_SAMPLES.forEach(function (s) { lines.push('  - ' + s); });
 
-    var prof = [];
-    if (p.appearance) prof.push('見た目：' + p.appearance);
-    if (p.background) prof.push('経歴：' + p.background);
-    if (p.hobby) prof.push('趣味：' + p.hobby);
-    if (p.interest) prof.push('関心事：' + p.interest);
-    if (p.futureGoals) prof.push('今後の目標：' + p.futureGoals);
-    if (p.personality) prof.push('性格：' + p.personality);
-    if (prof.length) {
+    var visible = [];
+    if (p.appearance) visible.push('見た目・外見的特徴：' + p.appearance);
+    if (p.gender) visible.push('外見から分かる性別：' + (p.gender === 'female' ? '女性' : (p.gender === 'male' ? '男性' : p.gender)));
+
+    var internal = [];
+    if (p.name) internal.push('相手の名前：' + p.name + '（※初対面のライザはまだ知りません。相手が自ら名乗った後に初めて知ることになります）');
+    if (p.background) internal.push('生い立ち・経歴・隠された背景：' + p.background + '（※相手が話すまでライザは知りません）');
+    if (p.personality) internal.push('相手の性格・内面：' + p.personality);
+    if (p.hobby) internal.push('趣味：' + p.hobby);
+    if (p.interest) internal.push('関心事：' + p.interest);
+    if (p.interestExtra) internal.push('錬金術への関心：' + p.interestExtra);
+    if (p.storyStart) internal.push('出会いの背景：' + p.storyStart);
+    if (p.futureGoals) internal.push('相手の目標：' + p.futureGoals);
+
+    if (visible.length || internal.length) {
       lines.push('');
-      lines.push('## 相手（ユーザー）について');
-      prof.forEach(function (s) { lines.push('- ' + s); });
+      lines.push('## 相手（ユーザー）に関する情報');
+      lines.push('【重要：ライザの認知境界（メタ知識・テレパシーの禁止）】');
+      lines.push('ライザとユーザーは最初「完全な初対面（見知らぬ他人）」です。');
+      lines.push('・ライザが初めから知覚できるのは【目に見える外見】のみです。');
+      lines.push('・相手の名前、正体、過去、心の中、隠された秘密などは、相手が口に出して伝えるまでライザには一切分かりません。相手が名乗る前に名前を呼んだり、素性を言い当てたりすることは絶対にしないでください。');
+      if (visible.length) {
+        lines.push('');
+        lines.push('### 目で見える外見情報（ライザが直接観察できること）：');
+        visible.forEach(function (s) { lines.push('- ' + s); });
+      }
+      if (internal.length) {
+        lines.push('');
+        lines.push('### 相手の素性・内部情報（※相手が自ら明かすまでライザには未知の情報）：');
+        internal.forEach(function (s) { lines.push('- ' + s); });
+      }
     }
     if (c.extra) {
       lines.push('');
@@ -144,6 +166,7 @@
     var undress = 'off';
     var stage = 'stage_01_001_04';
     var tod = 'aft';
+    var ryza = 'present';
     try {
       var scr = _screenState && _screenState();
       if (scr) {
@@ -161,13 +184,15 @@
         if (st.tod === 'mor' || st.tod === 'aft' || st.tod === 'eve' || st.tod === 'ngt') {
           tod = st.tod;
         }
+        if (st.ryza_present === false) ryza = 'absent';
       }
     } catch (e) {}
     var parts = [
       'emotion:' + emotion,
       'attitude:' + attitude,
       'undress:' + undress,
-      'stage:' + stage
+      'stage:' + stage,
+      'ryza:' + ryza
     ];
     if (llmDrivesClock()) parts.push('tod:' + tod);
     return '[' + parts.join('|') + ']';
@@ -196,12 +221,16 @@
     }
     if (mode === 'asmr') L.push('一文は短く。息づかいを意識して、ゆっくり。');
     L.push('');
-    L.push('## 出力形式（厳守）');
-    L.push('毎ターン1行目から書く。変わる欄だけ直す。');
-    L.push('emotion: ' + EMOTIONS.join(' '));
-    L.push('attitude: ' + ATTITUDES.join(' '));
-    L.push('undress: on=脱いだ / off=着た。断るなら値を変えない。セリフで脱いだ/着たなら必ず合わせる。');
-    L.push('stage: 移動なら一覧のidか地名。寝るなら sleep。');
+    L.push('## 出力形式（最優先・厳守）');
+    L.push('1. 返答の最初の1文字目から必ず以下のタグ行を書いてください。タグの前に思考プロセス、独白、括弧（...）、挨拶などを出力することは固く禁止します。');
+    L.push('2. emotion: ' + EMOTIONS.join(' '));
+    L.push('3. attitude: ' + ATTITUDES.join(' '));
+    L.push('4. undress: on=脱いだ / off=着た。断るなら値を変えない。セリフで脱いだ/着たなら必ず合わせる。');
+    L.push('5. stage: 移動なら一覧のidか地名。寝るなら sleep。');
+    L.push('6. ryza: present=ライザ同席 / absent=ライザ不在・別行動（プレイヤー単独行動・情景ナレーション）。');
+    if (outLang && outLang !== 'ja') {
+      L.push('7. 出力言語は「' + langName(outLang) + '」です。日本語の思考や翻訳メモを一切書かず、最初から最後まで「' + langName(outLang) + '」のみで出力してください。');
+    }
     if (llmDrivesClock()) {
       L.push('tod: 時を進めるなら mor|aft|eve|ngt か +N時間。');
     }
@@ -241,8 +270,105 @@
     return screenTagLine() + '\n' + String(spoken || '').replace(/^\s+/, '');
   }
 
-  function buildSystemPrompt(mode, style, rpgContext, outLang, nsfwSection, sceneSection, memorySection) {
-    return [staticPrompt(mode, style, outLang, !!rpgContext), memorySection || '',
+  function openingDirector(historyLength, currentStage) {
+    var turns = Math.floor((historyLength || 0) / 2);
+    var L = [];
+    if (turns === 0) {
+      L.push('## 【シナリオ進行指示：第1段階・森での見知らぬ人との遭遇】');
+      L.push('【関係性と状況の前提】');
+      L.push('- あなた（ライザ）は小妖精の森で素材採集をしていたところ、道端に倒れて動かなくなっている相手（ユーザー）を発見しました。');
+      L.push('- 相手はライザにとって**完全に初対面の「見知らぬ他人」**です。今まで一度も見たことがありません。');
+      L.push('- **【名前の厳禁】相手の名前をライザは全く知りません。**名前で呼ぶことは不自然で厳禁です。「君」「あんた」「ちょっと！」など初対面の見知らぬ相手への呼びかけにしてください。');
+      L.push('- 相手の正体や背景、秘密もライザには全く分かりません。分かるのは「目の前で倒れている姿（外見）」だけです。');
+      L.push('');
+      L.push('1. 【相手の外見への真に迫るリアクション（最重要・厳守）】：');
+      L.push('   相手の「見た目・外見的特徴」をよく観察し、初対面の人物に対するリアルで生々しい第一反応を示してください。');
+      L.push('   - 魔物、異形、怪物、人外の姿：飛び上がって驚愕し、杖を構えて「ま、魔物！？……ううん、倒れてる……！？」と極度の恐怖と警戒心で身構える。');
+      L.push('   - 全裸・半裸・露出度が高い姿：顔を真っ赤にして叫び、慌てて手で目を覆いながら「な、なんで何も着てないのーっ！？」と激しく動揺・赤面する。');
+      L.push('   - 傷だらけや衰弱している場合：息を呑んで駆け寄り、「嘘でしょ！？ 大丈夫！？ しっかりして！」と真剣に心配する。');
+      L.push('   - 奇抜な服装や異邦人の場合：目を丸くして驚き、「ど、どこの人だろう……？」と物珍しさと心配が入り混じる。');
+      L.push('2. 【ライザの人助けの動機と行動】：');
+      L.push('   相手がどんなに怪しい・恐ろしい姿でも、ここは危険な魔物が徘徊する森です。放っておけば命を落としかねません。困っている人を見捨てられないライザの信念として、恐る恐る近寄り、呼吸や脈・意識を確かめて必死に呼びかけてください。');
+      L.push('Directive: The user is a COMPLETE STRANGER. You do NOT know their name or anything about them. React faithfully to their appearance (scared if monster, flustered if naked, concerned if hurt). Your compassion compels you to check their breathing and help.');
+    } else if (turns === 1) {
+      L.push('## 【シナリオ進行指示：第2段階・危険な森からの避難】');
+      L.push('【関係性と状況】');
+      L.push('- 倒れていた見知らぬ相手が意識を取り戻した（または身じろぎした・言葉を発した）場面です。');
+      L.push('- **相手はまだ名前も素性も分からない見知らぬ人です。**「君」「あんた」と呼んでください。');
+      L.push('1. 森の危険を警告する：');
+      L.push('   「気がついた！？ よかった……！ でも、ここはぷにや魔物が出る危ない森なんだ！」と焦りを露わにしてください。');
+      L.push('2. 安全なアトリエへの避難を促す：');
+      L.push('   「立ち上がれる？ 肩を貸すから、あたしの家（アトリエ）に行こう！ あそこなら安全だから！」と急いで連れ出そうとしてください。');
+      L.push('3. 【舞台移動タグの出力（必須）】：');
+      L.push('   必ずタグ行の stage を「stage_01_001_04」（ライザの家）にして出力してください。');
+      L.push('   例：[emotion:troubled|attitude:agree|stage:stage_01_001_04]');
+      L.push('Directive: The user is still an unknown stranger. Urge them to escape the monster-infested forest to safety at your atelier, and output stage:stage_01_001_04 in the tag line.');
+    } else if (turns === 2) {
+      L.push('## 【シナリオ進行指示：第3段階・アトリエ到着と自己紹介・素性の問い】');
+      L.push('【関係性と状況】');
+      L.push('- 見知らぬ相手を連れて無事にライザの家（アトリエ：stage_01_001_04）に到着しました。');
+      L.push('1. 安堵と休息：');
+      L.push('   「ふぅ……ここまで来ればもう安心だよ！」と胸を撫で下ろして安堵し、椅子に座らせて水やお茶、または錬金術の気付け薬を差し出してください。');
+      L.push('2. 自己紹介と相手の名前・素性を尋ねる（核心）：');
+      L.push('   **ライザは相手が何者か、名前もまだ知りません。**');
+      L.push('   まず自分から「あたしはライザリン・シュタウト。みんなからはライザって呼ばれてるよ！ よろしくね」と名乗り、');
+      L.push('   「それで……君は一体だれなの？ 名前なんていうの？ どうしてあんな森で倒れてたの？」と、相手の正体や名前を優しく尋ねてください。');
+      L.push('Directive: Safely at your atelier (stage_01_001_04). Sigh in relief, offer a seat/water, introduce yourself as Ryza, and ask for their name and how they ended up in the forest (since you don\'t know who they are yet).');
+    } else if (turns === 3) {
+      L.push('## 【シナリオ進行指示：第4段階・名前の認知と歓迎】');
+      L.push('【関係性と状況】');
+      L.push('相手がアトリエで自分の名前や事情を答える場面です。');
+      L.push('1. 相手が名乗った場合：');
+      L.push('   「〜っていうんだね！」と相手の言葉によって**ここで初めて名前を知る**ことになります。この時点から相手を名前で呼び始めて構いません。');
+      L.push('2. 事情を受け止める：');
+      L.push('   森で倒れていた理由や背景に耳を傾け、相手が語ったことだけを受け止めてください（相手が隠している秘密を勝手に知っているかのように振る舞うのは禁止です）。');
+      L.push('3. 居場所の提供：');
+      L.push('   「体が休まるまで、ここにいていいからね！」と温かく迎え入れ、これからの関係の第一歩を踏み出してください。');
+      L.push('Directive: Listen to their name and story. Only now do you learn their name. Accept them and offer shelter at the atelier.');
+    } else {
+      L.push('## 【関係性と認知の前提】');
+      L.push('森で倒れていたところを助け、アトリエで自己紹介を交わしたばかりの新しい間柄です。相手が自ら明かしていない内面や過去の秘密はライザには未知のままです。相手との自然なやり取りを通して少しずつ信頼を深めていってください。');
+    }
+    return L.join('\n');
+  }
+
+  function presenceDirector(ryzaPresent, currentStage, historyLength) {
+    var L = [];
+    if (!ryzaPresent) {
+      L.push('## 【重要・状況：ライザ不在／プレイヤー単独行動・情景ナレーション】');
+      L.push('- **現在、ライザはその場におらず外出・離席中です。プレイヤー（ユーザー）は一人でこの場所（stage）にいます。**');
+      L.push('- **ライザの姿は画面から消えており（非表示中）、ライザが話しかけたり直接応答することは不可能です。**');
+      L.push('- **【あなたの役割：情景ナレーター / ゲームマスター（DM）】**');
+      L.push('  1. セリフは原則「Narrator:」（または「旁白:」「ナレーション:」）で始めてください。');
+      L.push('  2. プレイヤーの行動、周囲の探索、調べたもの、試みたことに対し、環境・空間・音・匂い・結果などを臨場感豊かに描写・語ってください。');
+      L.push('     - 例（アトリエ内）：錬金釜の微かな残り香、机の上に乱雑に広げられた調合ノート、窓の外の木々のざわめき、引き出しの中の試薬ビンなど。');
+      L.push('     - プレイヤーが「調合を試みる」「窓の外を見る」「本を読む」「ベッドで横になる」など自由に行動した場合、その成否や何が起きたか（あるいは何も起きなかったか）を描写する。');
+      L.push('  3. その場に他のNPCがいる場合は、そのNPCが会話に加わっても構いません（例：「角色[tao]：……」）。');
+      L.push('- **【ライザの帰宅・合流（ryza: present）について】**：');
+      L.push('  - プレイヤーが「ライザの帰りを待つ」「休む」「寝る」「時間が経過した」場合、またはシナリオ上キリが良いところで、ライザを帰宅・合流させて構いません。');
+      L.push('  - ライザを戻す場合の手順：');
+      L.push('    1. タグ行に「ryza:present」を含める（例：[emotion:happy|attitude:agree|stage:' + (currentStage || 'stage_01_001_04') + '|ryza:present]）。');
+      L.push('    2. ナレーターで行を書き、ライザがドアを開けて戻ってきた情景を描写する（例：「Narrator: ガチャリと扉が開き、採取カゴを抱えたライザが戻ってきた。」）。');
+      L.push('    3. 続いて「Ryza:」（または「ライザ:」）で帰ってきたライザ自身の台詞を話させる。');
+      L.push('Directive: Ryza is ABSENT. You act as the DM / World Narrator. Ryza CANNOT speak. Describe the environment, sensory details, and the results of the player\'s solo actions with "Narrator:" prefix. If Ryza returns (e.g. player waits, sleeps, or time passes), output [ryza:present], narrate her arrival, and have Ryza speak.');
+    } else {
+      L.push('## 【ライザの外出・別行動（ryza: absent）のルール】');
+      L.push('- ライザが「ちょっと森へ素材採取に行ってくるね！」「クーケン島へお使いに行ってくる！」などとプレイヤーをその場に残して出かける場合、またはプレイヤーから「一人にしてほしい」「留守番している」「出かけてきて」などと頼まれた場合：');
+      L.push('  - 返答タグ行を「ryza:absent」にしてください（例：[emotion:smile|attitude:agree|stage:' + (currentStage || 'stage_01_001_04') + '|ryza:absent]）。');
+      L.push('  - ライザが「じゃあ行ってくるね！ 留守番よろしく！」と挨拶して出かける台詞を書いてください。次のターンからプレイヤーの単独探索・ナレーションモードへと移行します。');
+      L.push('Directive: If Ryza leaves the room/area or goes gathering, output [ryza:absent] in the tag line and bid the player farewell. Subsequent turns will enter solo exploration DM mode.');
+    }
+    return L.join('\n');
+  }
+
+  function buildSystemPrompt(mode, style, rpgContext, outLang, nsfwSection, sceneSection, memorySection, historyLength) {
+    var st = (window.Config && Config.section('state')) || {};
+    var director = openingDirector(historyLength, st.stage);
+    var presence = presenceDirector(st.ryza_present !== false, st.stage, historyLength);
+    return [staticPrompt(mode, style, outLang, !!rpgContext),
+            director,
+            presence,
+            memorySection || '',
             dynamicPrompt(rpgContext, nsfwSection, sceneSection)]
       .filter(Boolean).join('\n\n');
   }
@@ -273,15 +399,30 @@
      an alias for `undress`. */
   var KEEP = { keep: 1, same: 1, omit: 1, here: 1 };
 
+  var ALIAS_EMOTIONS = {
+    relieved: 'happy', smile: 'happy', joy: 'happy', glad: 'happy',
+    troubled: 'sad', worried: 'sad', worry: 'sad', anxious: 'sad', sorrow: 'sad',
+    flustered: 'shy', blush: 'shy', mad: 'angry', furious: 'angry',
+    laugh: 'laughing', cry: 'crying', calm: 'neutral'
+  };
+  var ALIAS_ATTITUDES = {
+    disagree: 'deny', refusal: 'deny', refuse: 'deny', no: 'deny',
+    curious: 'question', ask: 'question', doubt: 'question', why: 'question'
+  };
+
   function parseTagFields(tag, dest) {
     String(tag || '').split(/[|｜,]/).forEach(function (part) {
       var m = /^\s*([A-Za-z_]+)\s*[:：]\s*(\S+)/.exec(part);
       if (!m) return;
       var k = m[1].toLowerCase();
       var v = m[2].replace(/[。．.]+$/, '').toLowerCase();
-      if (k === 'emotion' && EMOTIONS.indexOf(v) !== -1) dest.emotion = v;
-      else if (k === 'attitude' && ATTITUDES.indexOf(v) !== -1) dest.attitude = v;
-      else if (k === 'undress' || k === 'nsfw') {
+      if (k === 'emotion') {
+        if (EMOTIONS.indexOf(v) !== -1) dest.emotion = v;
+        else if (ALIAS_EMOTIONS[v]) dest.emotion = ALIAS_EMOTIONS[v];
+      } else if (k === 'attitude') {
+        if (ATTITUDES.indexOf(v) !== -1) dest.attitude = v;
+        else if (ALIAS_ATTITUDES[v]) dest.attitude = ALIAS_ATTITUDES[v];
+      } else if (k === 'undress' || k === 'nsfw') {
         if (KEEP[v]) dest.nsfw = null;
         else if (v === 'on' || v === '1' || v === 'true') dest.nsfw = true;
         else if (v === 'off' || v === '0' || v === 'false') dest.nsfw = false;
@@ -297,12 +438,16 @@
       } else if (k === 'time_advance') {
         var n = parseInt(v, 10);
         if (!isNaN(n)) dest.advance = n;
+      } else if (k === 'ryza' || k === 'presence') {
+        if (KEEP[v]) dest.ryza_present = null;
+        else if (v === 'absent' || v === 'away' || v === 'off' || v === '0' || v === 'false' || v === 'leave' || v === 'out') dest.ryza_present = false;
+        else if (v === 'present' || v === 'here' || v === 'on' || v === '1' || v === 'true' || v === 'back' || v === 'enter') dest.ryza_present = true;
       }
     });
   }
 
   function isMachineTag(tag) {
-    return /(?:^|[|｜,\s])(?:emotion|attitude|undress|nsfw|stage|place|tod|sleep|time_advance)\s*[:：]/i.test('|' + tag);
+    return /(?:^|[|｜,\s])(?:emotion|attitude|undress|nsfw|stage|place|tod|sleep|time_advance|ryza|presence)\s*[:：]/i.test('|' + tag);
   }
 
   function attachSceneTags(state, dest) {
@@ -312,28 +457,59 @@
     else if (dest.stage) { s.current_stage = dest.stage; hit = true; }
     if (dest.tod) { s.tod = dest.tod; hit = true; }
     if (dest.advance) { s.time_advance = dest.advance; hit = true; }
+    if (dest.ryza_present !== null && dest.ryza_present !== undefined) {
+      s.ryza_present = dest.ryza_present;
+      hit = true;
+    }
     return hit ? s : null;
   }
 
   function parseTaggedReply(text) {
-    var dest = { emotion: null, attitude: null, nsfw: null, stage: null, tod: null, advance: null };
+    var dest = { emotion: null, attitude: null, nsfw: null, stage: null, tod: null, advance: null, ryza_present: null };
     var body = String(text || '').replace(/^\uFEFF/, '').trim();
     body = body.replace(/^```[\w-]*\s*\n?/, '').replace(/\n```\s*$/, '').trim();
-    body = body.replace(/^<think\b[^>]*>[\s\S]*?<\/think>\s*/i, '');
-    body = body.replace(/^<reasoning\b[^>]*>[\s\S]*?<\/reasoning>\s*/i, '');
-    var n = 0;
-    while (n++ < 3 && body.charAt(0) === '[') {
-      var end = body.indexOf(']');
-      if (end === -1) break;
-      var tag = body.slice(1, end);
-      if (!isMachineTag(tag)) break;
-      parseTagFields(tag, dest);
-      body = body.slice(end + 1).replace(/^\s+/, '');
+    body = body.replace(/<think\b[^>]*>[\s\S]*?(?:<\/think>|$)/gi, '');
+    body = body.replace(/<thought\b[^>]*>[\s\S]*?(?:<\/thought>|$)/gi, '');
+    body = body.replace(/<reasoning\b[^>]*>[\s\S]*?(?:<\/reasoning>|$)/gi, '');
+
+    // Globally search for machine tag: [emotion:...|attitude:...|stage:...]
+    var tagRegex = /\[\s*(?:emotion|attitude|undress|nsfw|stage|place|tod|sleep|time_advance|ryza|presence)\s*:[^\]]+\]/gi;
+    var firstTagMatch = null;
+    var m;
+    while ((m = tagRegex.exec(body)) !== null) {
+      if (!firstTagMatch) firstTagMatch = m;
+      var tagContent = m[0].slice(1, -1);
+      parseTagFields(tagContent, dest);
     }
+
+    if (firstTagMatch) {
+      var preText = body.slice(0, firstTagMatch.index).trim();
+      var postText = body.slice(firstTagMatch.index + firstTagMatch[0].length).trim();
+      postText = postText.replace(tagRegex, '').trim();
+
+      var isThought = /^[（\(][\s\S]*?[）\)]\s*$/i.test(preText) ||
+                      /^(?:thought|thinking|思考|内省|心理|monologue|note)\s*[:：]/i.test(preText) ||
+                      /^\*[\s\S]*?\*$/.test(preText) ||
+                      (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(preText) && /[A-Za-z]{3,}/.test(postText) && !/^(?:ライザ|角色|旁白)\s*[:：]/.test(preText));
+
+      if (isThought || !postText) {
+        body = postText || preText;
+      } else {
+        body = preText + '\n' + postText;
+      }
+    } else {
+      body = body.replace(/\[\s*[A-Za-z_]+\s*[:：][^\]]+\]/g, '').trim();
+    }
+
+    // Strip leading leaked Japanese monologue/parentheses before dialog
+    body = body.replace(/^\s*[（\(][^\r\n（\)]*?(?:魔物に|思考|考えて|行動し|襲われて|私|あたし|自分|thought|thinking)[\s\S]*?[）\)]\s*\n?/i, '');
+
     var ex = extractState(body);
+    var cleanText = String(ex.text || '').trim();
     return {
       emotion: dest.emotion, attitude: dest.attitude, nsfw: dest.nsfw,
-      text: ex.text, state: attachSceneTags(ex.state, dest)
+      stage: dest.stage, tod: dest.tod, ryza_present: dest.ryza_present,
+      text: cleanText, state: attachSceneTags(ex.state, dest)
     };
   }
 
@@ -917,12 +1093,20 @@
     var m = j && j.choices && j.choices[0] && j.choices[0].message;
     if (!m) return '';
     var c = m.content;
-    if (typeof c === 'string') return c;
+    if (typeof c === 'string' && c.trim()) return c;
     if (Array.isArray(c)) {
-      return c.map(function (p) {
+      var joined = c.map(function (p) {
         return (p && (p.text || p.content || '')) || '';
       }).join('');
+      if (joined.trim()) return joined;
     }
+    if (typeof m.reasoning_content === 'string' && m.reasoning_content.trim()) {
+      return m.reasoning_content;
+    }
+    if (typeof m.reasoning === 'string' && m.reasoning.trim()) {
+      return m.reasoning;
+    }
+    if (typeof c === 'string') return c;
     return '';
   }
 
@@ -1314,7 +1498,7 @@
       } catch (e) { /* 记忆层不许拖垮对话 */ }
       var system = buildSystemPrompt(opts.mode || st.mode, opts.style || st.style,
                                      opts.rpgContext || '', outLang, opts.nsfwSection || '',
-                                     opts.sceneSection || '', mem);
+                                     opts.sceneSection || '', mem, (history || []).length);
       var keep = Math.max(0, (llm.historyTurns || 12) * 2);
       var hist = (history || []).slice(-keep);
       var ctx = resolvedContext(llm);
@@ -1336,7 +1520,7 @@
       var body = {
         model: llm.model, messages: pack(hist),
         temperature: Number(llm.temperature) || 0.9,
-        max_tokens: Number(llm.maxTokens) || 400
+        max_tokens: Number(llm.maxTokens) || 1024
       };
       attachThinking(body, llm, _modelMeta && _modelMeta.id === llm.model ? _modelMeta : null);
       return request(localProxy(upstreamUrl(llm.baseUrl, '/chat/completions')),

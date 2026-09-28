@@ -139,7 +139,8 @@
       Daily.s.lastDate = todayStr();
       if (Daily.s.claimedDays.indexOf(idx) === -1) Daily.s.claimedDays.push(idx);
       Daily.save();
-      Game.remember('連続ログイン ' + Daily.streak() + ' 日目：' + msgs.join('、'));
+      var joinSep = (window.I18n && (I18n.lang === 'zh' || I18n.lang === 'ja')) ? '、' : ', ';
+      Game.remember(window.I18n && I18n.tf ? I18n.tf('mem.loginBonus', 'Consecutive login Day {n}: {items}', { n: Daily.streak(), items: msgs.join(joinSep) }) : ('Consecutive login Day ' + Daily.streak() + ': ' + msgs.join(joinSep)));
       if (_celebrate) { try { _celebrate(); } catch (e) { /* never break the claim */ } }
       return { ok: true, day: idx + 1, text: msgs.join('、') };
     },
