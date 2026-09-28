@@ -76,6 +76,13 @@
     return !m || !!PLACEHOLDER_MODELS[m];
   }
 
+  /* What Ryza has been told about the player — Game.s.known, written only
+     through applyDelta / Game.learn. Absent Game (api.js loaded alone) =
+     nothing is known, which is the safe default. */
+  function knows(key) {
+    try { return !!(window.Game && Game.knows && Game.knows(key)); } catch (e) { return false; }
+  }
+
   function persona() {
     var c = Config.section('chara'), p = Config.section('profile');
     var lines = [];
@@ -89,7 +96,9 @@
     lines.push('ライザそのものになりきるのではなく、「ライザを演じる語り手」として書く。物語の主導権は常にプレイヤーにある。');
     lines.push('');
     lines.push('## キャラクター（ライザ）');
-    lines.push('- 一人称は「あたし」。相手は「' + (c.callMe || '君') + '」と呼ぶ。');
+    lines.push('- 一人称は「あたし」。');
+    if (knows('name') && c.callMe) lines.push('- 相手の名前は「' + c.callMe + '」。そう呼ぶ。');
+    else lines.push('- 相手の名前はまだ知らない。名乗られるまで「君」「あなた」で呼ぶか、名前を尋ねる。');
     lines.push('- 明るく前向きで、少しおっちょこちょいな錬金術士。');
     lines.push('- 好奇心旺盛で調合と冒険が好き。困っている人を放っておけない。');
     if (c.personality) lines.push('- 性格：' + c.personality);
@@ -99,18 +108,21 @@
     lines.push('- 参考になる実際の言い回し：');
     STYLE_SAMPLES.forEach(function (s) { lines.push('  - ' + s); });
 
+    /* Appearance is visible, so it is always a fact; everything else is
+       withheld until the player has actually said it (Game.s.known). Feeding
+       the whole profile as fact is what made her greet strangers by name and
+       job, then invent how she knew. */
     var prof = [];
-    if (p.appearance) prof.push('見た目：' + p.appearance);
-    if (p.background) prof.push('経歴：' + p.background);
-    if (p.hobby) prof.push('趣味：' + p.hobby);
-    if (p.interest) prof.push('関心事：' + p.interest);
-    if (p.futureGoals) prof.push('今後の目標：' + p.futureGoals);
-    if (p.personality) prof.push('性格：' + p.personality);
-    if (prof.length) {
-      lines.push('');
-      lines.push('## 相手（ユーザー）について');
-      prof.forEach(function (s) { lines.push('- ' + s); });
-    }
+    if (p.appearance) prof.push('見た目（見れば分かる）：' + p.appearance);
+    if (knows('background') && p.background) prof.push('経歴（本人から聞いた）：' + p.background);
+    if (knows('hobby') && p.hobby) prof.push('趣味（本人から聞いた）：' + p.hobby);
+    if (knows('interest') && p.interest) prof.push('関心事（本人から聞いた）：' + p.interest);
+    if (knows('futureGoals') && p.futureGoals) prof.push('今後の目標（本人から聞いた）：' + p.futureGoals);
+    if (knows('personality') && p.personality) prof.push('性格（付き合って分かった）：' + p.personality);
+    lines.push('');
+    lines.push('## 相手（ユーザー）について');
+    if (prof.length) prof.forEach(function (s) { lines.push('- ' + s); });
+    lines.push('- 上に無いことは知らない。名前・出身・仕事・事情は、本人が話して初めて分かる。当てにいかない。知っていた理由を後付けしない。分からなければ聞く。');
     if (c.extra) {
       lines.push('');
       lines.push('## 追加設定');
@@ -131,6 +143,9 @@
     '- ライザの台詞の中に、自分の動作や心情の説明を書かない。動作は（ ）の行に分ける。',
     '- プレイヤー（相手）の台詞・行動・心情を代わりに書かない。プレイヤーの選択はプレイヤーに委ねる。',
     '- 設定にない人物や出来事を大きく創作しない。1ターンで進む物語は小さな一歩まで。プレイヤーの問いに答えてから、次を促す。',
+    '- 「信頼度」の段階に書かれた「話さないこと・しないこと」は絶対の禁止事項。警戒の段階では、住まい・家族・一人暮らしかどうかを聞かれても答えない（はぐらかす）。',
+    '- 相手が名前・出身・仕事・趣味を明かしたターンは、必ず <state> の learned に該当キーを入れる（例：名乗った → "learned":["name"]）。',
+    '- 地の文も台詞も同じ出力言語で書く（地の文だけ日本語にしない）。Markdown の強調（*や**）は使わない。',
     '- 例：',
     '（工房の窓から朝の光が差し込み、ライザは釜の前で伸びをした。）',
     'おはよう！今日は何して遊ぶ？あ、そうだ、クーケン島に行くなら船がいるよね……。'
@@ -139,12 +154,60 @@
   /* How much narration each mode wants. chat/text are conversation first;
      story/immersive are where the narrator voice belongs; ASMR is voice only. */
   var NARRATION = {
-    chat: '地の文（ ）は最小限。0〜1行、必要なときだけ。',
-    text: '地の文（ ）は最小限。0〜1行、必要なときだけ。',
-    story: '地の文（ ）は1〜3行まで。情景と動作を短く挟み、会話を前に進める。',
-    immersive: '地の文（ ）は数行まで。五感の描写を中心に、台詞は短めに。',
-    asmr: '地の文（ ）は書かない。台詞だけ。'
+    chat: '地の文（ ）は最大1行、20語以内。台詞は合計80語以内、2〜4文。',
+    text: '地の文（ ）は最大1行、20語以内。台詞は合計120語以内。',
+    story: '地の文（ ）は最大3行、各20語以内。台詞は合計120語以内。',
+    immersive: '地の文（ ）は最大4行。五感の描写を中心に、台詞は合計100語以内。',
+    asmr: '地の文（ ）は書かない。台詞だけ、合計60語以内。'
   };
+
+  /* Where the story starts. Chosen in onboarding (profile.storyStart holds
+     the localized label; resolveScenario maps it back). Each entry says what
+     both sides know at turn one, the opening stage and the starting trust. */
+  var SCENARIOS = {
+    daily: {
+      stage: 'stage_01_001_04', trust: 10, known: [],
+      opener: { en: '（A knock at the workshop door. Ryza looks up from the cauldron.）', ja: '（工房の扉を叩く音。ライザが釜から顔を上げる。）', zh: '（工坊的门被敲响。莱莎从锅前抬起头。）' },
+      prompt: '状況：相手はアトリエを訪ねてきた来客。初対面。'
+    },
+    longtime: {
+      stage: 'stage_01_001_04', trust: 70, known: ['name', 'background', 'hobby', 'interest', 'personality'],
+      opener: { en: '（The usual afternoon at the atelier. Ryza waves you in without looking up.）', ja: '（いつもの午後のアトリエ。ライザは顔も上げずに手を振って招き入れる。）', zh: '（工坊里一如既往的午后。莱莎头也不抬地招手让你进来。）' },
+      prompt: '状況：二人は長い付き合い。お互いをよく知っている。'
+    },
+    /* The opener is Ryza's own first turn, in the reply format the parser
+       reads (（narration）+ speech lines), so the story starts with her
+       finding and waking the player. The other-world fact is narrator-only:
+       Ryza herself assumes the ordinary explanations a person would. */
+    isekai: {
+      stage: 'stage_01_002_02', trust: 5, known: [], ryzaFirst: true,
+      opener: {
+        en: '（Pixie Forest, late afternoon. A girl with a basket of herbs stops on the path: someone is lying face-down in the moss, not moving. She drops the basket and kneels beside them.）\nHey! Hey, can you hear me?\n（She shakes their shoulder, then checks for breathing, for blood.）\nOkay... you\'re breathing. Don\'t sit up too fast, alright? Just... open your eyes. Can you tell me your name?',
+        ja: '（小妖精の森、夕方前。薬草の籠を抱えた少女が小道で足を止める。苔の上に誰かがうつ伏せで倒れて、動かない。籠を放り出して、そばに膝をつく。）\nねえ！　ねえ、聞こえる？\n（肩を揺すり、それから息と血の有無を確かめる。）\nよかった……息はしてる。急に起き上がっちゃだめだよ？　ゆっくり……目、開けられる？　名前、言える？',
+        zh: '（小妖精之森，傍晚前。提着药草篮的少女在小路上停下：有人趴在苔藓上一动不动。她放下篮子，跪到旁边。）\n喂！喂，听得见吗？\n（她摇了摇对方的肩膀，然后检查呼吸和有没有流血。）\n还好……还有呼吸。别急着坐起来，好吗？慢慢来……能睁开眼睛吗？能告诉我你的名字吗？'
+      },
+      prompt: [
+        '状況：ライザは材料集めの途中、小妖精の森の小道で、見知らぬ人がうつ伏せに倒れているのを見つけた。今は起こして、怪我の有無を確かめているところ。',
+        'ライザの見立て（本人の前提）：本土から来た旅人か港の客が、道に迷って倒れた／転んだ／暑さにやられた／魔物に遭った／港で飲み過ぎた、のどれか。それ以外の可能性は考えない。',
+        'ライザの優先順位：①息と怪我 ②水を飲ませる、急に立たせない ③名前と、何があったか ④安全な場所（一番近いのは自分のアトリエ）へ。事情の詮索は後回し。',
+        '相手が変な言葉（電話、電車、会社など）を使っても、「頭を打ったのかも」「本土の言い回しかな」と流す。出身や来歴を当てにいかない。「遠くから来たんだね」と決めつけない。',
+        '語り手だけが知る事実（ライザは知らないし、想像もしない）：相手は別の世界から、記憶を保ったまま落ちてきた。相手が自分で語ったことだけがライザにとっての事実。'
+      ].join('\n')
+    }
+  };
+  function resolveScenario() {
+    var v = '';
+    try { v = String((Config.section('profile') || {}).storyStart || ''); } catch (e) {}
+    if (!v) return 'daily';
+    var all = function (k) { try { return (window.I18n && I18n.all) ? I18n.all(k) : []; } catch (e) { return []; } };
+    if (v === 'isekai' || all('onb.q06.c3').indexOf(v) !== -1) return 'isekai';
+    if (v === 'longtime' || all('onb.q06.c2').indexOf(v) !== -1) return 'longtime';
+    return 'daily';
+  }
+  function scenarioSection(id) {
+    var s = SCENARIOS[id || resolveScenario()];
+    return s ? '## 物語の始まり\n' + s.prompt : '';
+  }
 
   function langName(lg) {
     return (window.I18n && I18n.LANG_NAMES && I18n.LANG_NAMES[lg]) || lg;
@@ -220,6 +283,7 @@
       if (outLang === 'en') {
         L.push('Reply strictly in English (do not mix in Chinese or Japanese in speech).');
       }
+      L.push('地の文（ ）も' + langName(outLang) + 'で書く。');
       L.push('地名や人名は' + langName(outLang) + '表記を基本に、必要なら日本語を併記してよい。');
       L.push('先頭のタグ行と <state> は英キーのまま。');
     }
@@ -227,6 +291,8 @@
     L.push('## 今回の会話モード');
     L.push(MODES[mode] || MODES.chat);
     L.push(NARRATION[mode] || NARRATION.chat);
+    var scen = scenarioSection();
+    if (scen) { L.push(''); L.push(scen); }
     if (style === 'text') {
       L.push('音声では読み上げないので、少し長めに書いてもよい。');
     } else {
@@ -245,9 +311,12 @@
       L.push('tod: 時を進めるなら mor|aft|eve|ngt か +N時間。');
     }
     if (hasRpg) {
-      L.push('荷物・金・経験・クエスト・記憶が動いたときだけ末尾に <state>：');
-      L.push('<state>{"stamina_delta":-2,"exp_delta":10,"money_delta":50,"inventory_added":[{"id":"emeralia","count":1}],"quest":{"step_add":1}}</state>');
-      L.push('key: stamina_delta exp_delta money_delta inventory_added|removed ryza_inventory_* memory_add quest{step_add,complete}');
+      L.push('毎ターン末尾に <state> を付ける。trust_delta は必ず入れる（変化なしなら 0）。他の欄は動いたときだけ：');
+      L.push('<state>{"stamina_delta":-2,"exp_delta":10,"money_delta":50,"inventory_added":[{"id":"emeralia","count":1}],"quest":{"step_add":1},"trust_delta":2,"learned":["name"]}</state>');
+      L.push('key: stamina_delta exp_delta money_delta inventory_added|removed ryza_inventory_* memory_add quest{step_add,complete} trust_delta learned[name|background|hobby|interest|futureGoals|personality|origin]');
+    } else {
+      L.push('毎ターン末尾に <state> を付ける。trust_delta は必ず入れる（変化なしなら 0）。相手が名前や事情を明かしたら learned も：');
+      L.push('<state>{"trust_delta":1,"learned":["name"]}</state>');
     }
     return L.join('\n');
   }
@@ -280,9 +349,10 @@
     return screenTagLine() + '\n' + String(spoken || '').replace(/^\s+/, '');
   }
 
-  function buildSystemPrompt(mode, style, rpgContext, outLang, nsfwSection, sceneSection, memorySection) {
-    return [staticPrompt(mode, style, outLang, !!rpgContext), memorySection || '',
-            dynamicPrompt(rpgContext, nsfwSection, sceneSection)]
+  function buildSystemPrompt(mode, style, rpgContext, outLang, nsfwSection, sceneSection, memorySection, extraSections) {
+    return [staticPrompt(mode, style, outLang, !!rpgContext), memorySection || '']
+      .concat(Array.isArray(extraSections) ? extraSections : [])
+      .concat([dynamicPrompt(rpgContext, nsfwSection, sceneSection)])
       .filter(Boolean).join('\n\n');
   }
 
@@ -358,6 +428,8 @@
     var dest = { emotion: null, attitude: null, nsfw: null, stage: null, tod: null, advance: null };
     var body = String(text || '').replace(/^\uFEFF/, '').trim();
     body = body.replace(/^```[\w-]*\s*\n?/, '').replace(/\n```\s*$/, '').trim();
+    /* a lone "]" or "[" line the model leaves behind after the tag line */
+    body = body.replace(/^\s*[\[\]]\s*(?:\n|$)/, '');
     body = body.replace(/^<think\b[^>]*>[\s\S]*?(?:<\/think>|$)\s*/i, '');
     body = body.replace(/^<reasoning\b[^>]*>[\s\S]*?(?:<\/reasoning>|$)\s*/i, '');
     var n = 0;
@@ -368,6 +440,8 @@
       if (!isMachineTag(tag)) break;
       parseTagFields(tag, dest);
       body = body.slice(end + 1).replace(/^\s+/, '');
+      /* a lone "]" the model sometimes leaves on the next line after the tag */
+      body = body.replace(/^[\]\[]+\s*(?:\n|$)\s*/, '');
     }
     var ex = extractState(body);
     return {
@@ -1239,6 +1313,9 @@
     screenTagLine: screenTagLine,
     withTurnCue: withTurnCue,
     formatHistoryReply: formatHistoryReply,
+    SCENARIOS: SCENARIOS,
+    resolveScenario: resolveScenario,
+    scenarioSection: scenarioSection,
     extractState: extractState,
     isPlaceholderModel: isPlaceholderModel,
     estTokens: estTokens,
@@ -1353,7 +1430,7 @@
       } catch (e) { /* 记忆层不许拖垮对话 */ }
       var system = buildSystemPrompt(opts.mode || st.mode, opts.style || st.style,
                                      opts.rpgContext || '', outLang, opts.nsfwSection || '',
-                                     opts.sceneSection || '', mem);
+                                     opts.sceneSection || '', mem, opts.sections || []);
       var keep = Math.max(0, (llm.historyTurns || 12) * 2);
       var hist = (history || []).slice(-keep);
       var ctx = resolvedContext(llm);

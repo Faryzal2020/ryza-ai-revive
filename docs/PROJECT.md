@@ -90,6 +90,23 @@ the extra stage buttons (zoom / posture / replay / favourite) fold behind ⋯
 (`app.quickCollapsed`, default on). Fresh installs start in English (`app.lang`), and
 `App.applyI18n` also sets `<html lang>` and the document title.
 
+**Lorebook, trust, scenario (2026-09-28).** `lorebook.js` (core) holds authored world
+knowledge in `assets/data/lore/lorebook.json` plus a user layer (`ryza.lorebook.v1`): entries
+with `keys`, `scope` (`ryza` = she knows it / `world` = narrator only / `player` = the player's
+own-world knowledge), `priority`, `always`, `stages`. `Lorebook.promptBlock(ctx)` injects the
+`always` entries plus up to 8 keyword/stage hits under a character budget; `App._extraSections`
+builds the ctx from the user line, the last reply, the stage and the islanders present.
+Trust lives in `Game.s.trust` (0-100, bands 警戒/顔見知り/友好/信頼/親友) and `Game.s.known`
+(which player facts she has been told); both change only through `applyDelta`
+(`trust_delta`, capped ±20 per turn; `learned[]`) or `Game.setTrust`/`Game.learn`.
+`Game.trustBlock()` gives the model the current band and the delta rules; `Game.trustRules`
+mirrors the blunt cases (grab/threat −20, insult −5, apology/thanks +1) on the client.
+`persona()` in api.js only states player facts marked known — appearance is always visible,
+name via `callMe` only after `learned:["name"]` — and `Api.SCENARIOS` (daily / longtime /
+isekai, chosen by the onboarding story question) seeds the opening stage, starting trust,
+known facts and the narration opener that `App.greet` shows and records into the transcript.
+`scripts/lorebook_regression.js` and the trust block in `game_logic_regression.js` cover this.
+
 **Narrator + Ryza.** The system prompt frames the model as the narrator of an interactive
 story who voices Ryza (`api.js` `persona()` + `WRITING`), with a per-mode narration budget
 (`NARRATION`): speech is a plain line, narration is a whole line wrapped in （ ）. `Npc.split`
@@ -163,6 +180,7 @@ desktop implementation and drives the real dev server.
 ```powershell
 node scripts/boot_smoke.js
 node scripts/narration_regression.js
+node scripts/lorebook_regression.js
 node scripts/back_regression.js
 node scripts/game_logic_regression.js
 node scripts/memory_regression.js

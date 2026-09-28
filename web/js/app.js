@@ -165,7 +165,8 @@
       /* Ports first: they must not depend on the asset chain below succeeding. */
       App._wirePorts();
 
-      Promise.all([Config.hydrate(), World.init(), VoiceBank.load(), Sound.init()]).then(function () {
+      Promise.all([Config.hydrate(), World.init(), VoiceBank.load(), Sound.init(),
+                   (window.Lorebook ? Lorebook.init() : Promise.resolve())]).then(function () {
         Sound.setCatalog(Object.keys(World.scenes || {}));
         var st = Config.section('state');
         Sound.setPlace(st.stage, st.tod, World.backgroundFor(st.stage));
@@ -1599,6 +1600,35 @@
       return parts.filter(Boolean).join('\n\n');
     },
 
+    /* Relationship + world knowledge, every mode: the trust rubric, the
+       lorebook entries this turn triggers, nothing else. */
+    _extraSections: function (cue) {
+      var st = Config.section('state');
+      var out = [];
+      try { out.push(Game.trustBlock()); } catch (e) {}
+      try {
+        if (window.Lorebook) {
+          var place = World.find ? World.find(st.stage) : null;
+          out.push(Lorebook.promptBlock({
+            cue: cue, stage: st.stage,
+            field: place && place.fieldId, area: place && place.areaId,
+            npcs: (World.npcsAt ? World.npcsAt(st.stage, st.day || 1) : []).map(function (n) { return World.npcName(n.id); })
+          }));
+        }
+      } catch (e) {}
+      return out.filter(Boolean);
+    },
+    /* "My name is X" / "call me X" / "I'm X" on the player's side marks the
+       name as known without waiting for the model to report it. */
+    _learnFromText: function (text) {
+      var t = String(text || '');
+      if (/(?:^|\b)(?:[Mm]y name(?:'s| is)|[Cc]all me|I am|I'm|[Tt]he name's|[Nn]ame is|[Ii]t's)\s+[A-Z][\w'-]{1,20}\b/.test(t) ||
+          /^\s*[A-Z][a-z'-]{1,20}\.\s*(?:[A-Z]|$)/.test(t) ||      /* "Brock. And I..." — a bare name answer */
+          /(私|僕|俺|あたし)は[^。、\s]{1,12}(です|だ|って|と申します)|(と呼んで|って呼んで)/.test(t)) {
+        Game.learn(['name']);
+      }
+    },
+
     /* Numeric RPG (stamina / bags / quests) — chat/story/immersive only.
        ASMR/text still receive _sceneContext so they can travel/sleep. */
     _rpgContext: function () {
@@ -1722,6 +1752,8 @@
           App.saveHistory();
           if (window.Nsfw) Nsfw.reset();
           App._clearMsgs();
+          Config.set('state.scenarioSeeded', '');
+          App.greet();
           var bt = document.getElementById('bubble-text');
           if (bt) bt.textContent = '';
           App.showView('talk');
@@ -1732,6 +1764,31 @@
 
     greet: function () {
       var st = Config.section('state');
+      /* A brand-new story opens on the scenario's narration (forest awakening,
+         a knock at the door...) instead of a generic greeting; the scenario
+         also seeds the opening stage, starting trust and what she already
+         knows. A resumed transcript gets the short greeting as before. */
+      if (!(App.history && App.history.length) && window.Api && Api.SCENARIOS && !st.scenarioSeeded) {
+        var id = Api.resolveScenario();
+        var sc = Api.SCENARIOS[id];
+        if (sc) {
+          Game.setTrust(sc.trust);
+          Game.s.known = []; Game.learn(sc.known || []);
+          Config.set('state.scenarioSeeded', id);
+          if (sc.stage && sc.stage !== st.stage) App.gotoStage(sc.stage);
+          var lang = (I18n.lang || 'en');
+          var opener = sc.opener[lang] || sc.opener[lang.split('-')[0]] || sc.opener.en;
+          /* The opener is written in the reply format, so it renders like any
+             reply (narration rows + her lines) and the model continues from it
+             as its own first turn. */
+          var beats = (window.Npc && Npc.split) ? Npc.split(opener) : [{ speaker: 'narrator', text: opener }];
+          beats.forEach(function (b) { App.showBubble(b.text, App._roleOfBeat(b)); });
+          App.history.push({ role: 'assistant', content: Api.formatHistoryReply(opener) });
+          App.saveHistory();
+          Avatar.setEmotion(id === 'isekai' ? 'surprised' : 'happy', 'agree');
+          return;
+        }
+      }
       var line = st.day > 1 ? I18n.tc('greet.n', '……今日も、会えたね。')
                             : I18n.tc('greet.1', '……やあ、会えたね。');
       App.showBubble(line);
@@ -1768,13 +1825,20 @@
       if (window.LongTerm) {
         try { LongTerm.note('user', text); } catch (e) {}
       }
+      /* The client mirrors the obvious trust cases (a grab, an insult, an
+         apology) before the model answers, so the band she reads is already
+         right for this turn even if the model forgets the delta. */
+      var rule = Game.trustRules(text);
+      if (rule.delta) Game.applyDelta({ trust_delta: rule.delta }, 'rule:' + rule.why.join('+'));
+      App._learnFromText(text);
       Api.chat(App.history, text, {
         mode: st.mode, style: st.style,
         epoch: turnEpoch,
         cue: text,
         rpgContext: App._rpgContext(),
         sceneSection: App._sceneContext(),
-        nsfwSection: window.Nsfw ? Nsfw.screenFact() : ''
+        nsfwSection: window.Nsfw ? Nsfw.screenFact() : '',
+        sections: App._extraSections(text)
       })
         .then(function (reply) {
           /* A reply that is no longer the current turn must not land at all —
@@ -1793,6 +1857,13 @@
             Game.applyDelta(reply.state, 'llm');
             App._applySceneDelta(reply.state);
           }
+          if (window.Lorebook) Lorebook.noteReply(reply.text);
+          /* She used the player's name in her reply: she has learned it,
+             whatever the model reported. Cheap and robust. */
+          try {
+            var nm = String((Config.section('chara') || {}).callMe || '').trim();
+            if (nm && !Game.knows('name') && String(reply.text || '').indexOf(nm) !== -1) Game.learn(['name']);
+          } catch (e) {}
           var cost = Game.turnCost(st.mode, st.style);
           Game.spend(cost, 'talk');
 

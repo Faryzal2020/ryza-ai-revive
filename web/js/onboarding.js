@@ -35,7 +35,7 @@
       {
         id: 'story', type: 'single', field: 'profile.storyStart',
         promptKey: 'onb.q06.prompt', subKey: 'onb.q06.sub',
-        choices: ['onb.q06.c1', 'onb.q06.c2']
+        choices: ['onb.q06.c1', 'onb.q06.c2', 'onb.q06.c3']
       },
       {
         id: 'goals', type: 'text', field: 'profile.futureGoals',

@@ -75,8 +75,38 @@
     met_pairs: [],
     memory: [],
     flags: {},
-    sailed: false
+    sailed: false,
+    /* Relationship. trust 0-100 is the client's number (the model only
+       reports deltas through <state>); known[] lists which player facts
+       Ryza has actually been told (name, background, hobby, ...). Both are
+       written through applyDelta / the helpers below only. */
+    trust: 10,
+    known: []
   };
+  var TRUST_STEP_MAX = 20;            /* one turn cannot jump two bands */
+  var KNOWABLE = ['name', 'background', 'hobby', 'interest', 'futureGoals', 'personality', 'origin'];
+  /* band: [min, label, how she talks / what she shares / what she won't do] */
+  var TRUST_BANDS = [
+    [80, '親友',   '何でも話せる相手。冗談も本音も遠慮なし。秘密や弱さも打ち明ける。危険な採取にも一緒に行く。'],
+    [60, '信頼',   '気を許した友人。家族や幼なじみのことも普通に話す。頼まれれば爆弾以外の調合品は預ける。'],
+    [40, '友好',   '仲良くなってきた相手。明るく雑談し、島の案内や採取の同行を持ちかける。家の事情は少しだけ。'],
+    [20, '顔見知り', '礼儀正しく親切だが、家族や住まいの詳細は話さない。危険な場所には誘わないし、爆弾は見せるだけ。'],
+    [0,  '警戒',   '初対面かそれ以下。丁寧だが距離を取る。個人的なことは話さず、住まい・家族・一人暮らしかどうかは明かさない。危険物は渡さない、同行もしない。無礼には毅然と線を引く。']
+  ];
+  /* Client-side mirrors of the obvious cases so trust moves even when the
+     model forgets to report a delta. Kept blunt on purpose. */
+  var TRUST_RULES = [
+    /* a grab counts only when it is her body, not a sleeve or a hand offered
+       (a child clutching a sleeve is not a threat) */
+    { re: /\bgrab(?:s|bed)?\s+(?:her\s+|your\s+)?(?:wrist|arm|waist|hair|shoulder|chin|thigh|hips?)\b|\b(?:grope|groping|pin(?:s|ned)?\s+(?:her|you)\s+(?:down|against)|kiss me|give me a kiss|don't take no|won't take no|shut up and|or else|i'll hurt|make you regret)\b|手首を掴|腕を掴|触らせろ|キスしろ|逃がさない|痛い目/i, d: -20, why: 'threat' },
+    { re: /\b(stupid|idiot|ugly|bitch|slut|whore|brat|worthless|shut up)\b|ばか|バカ|馬鹿|ブス|死ね|うるさい/i, d: -5, why: 'insult' },
+    { re: /\b(sorry|apologi[sz]e|my bad|forgive me)\b|ごめん|すまない|申し訳/i, d: 1, why: 'apology' },
+    { re: /\b(thank|thanks|appreciate|you're amazing|well done|great job|nice work)\b|ありがと|助かった|すごいね|さすが/i, d: 1, why: 'kindness' }
+  ];
+  function trustBandOf(t) {
+    for (var i = 0; i < TRUST_BANDS.length; i++) if (t >= TRUST_BANDS[i][0]) return TRUST_BANDS[i];
+    return TRUST_BANDS[TRUST_BANDS.length - 1];
+  }
 
   /* Exp -> level. Kept simple and monotone; the official curve is server-side. */
   function levelForExp(exp) {
@@ -403,12 +433,69 @@
         d.memory_add.forEach(function (m) { Game.remember(m); });
         applied.push('memory');
       }
+      if (d.trust_delta != null) {
+        var td = Game.addTrust(num(d.trust_delta), origin || 'llm');
+        if (td) applied.push('trust' + (td > 0 ? '+' : '') + td);
+      }
+      if (Array.isArray(d.learned)) {
+        var ln = Game.learn(d.learned);
+        if (ln.length) applied.push('learned:' + ln.join(','));
+      }
       if (d.quest && window.Quests && Quests.onQuestDelta) {
         Quests.onQuestDelta(d.quest, origin || 'remote');
         applied.push('quest');
       }
       Game.emit('delta');
       return applied;
+    },
+
+    /* ------------------------------------------------------------ trust */
+    trust: function () { return Util.clamp(Number(Game.s.trust) || 0, 0, 100); },
+    trustBand: function () { return trustBandOf(Game.trust())[1]; },
+    /* Clamped per call so one turn cannot jump two bands. */
+    addTrust: function (n, why) {
+      var d = Util.clamp(Math.round(Number(n) || 0), -TRUST_STEP_MAX, TRUST_STEP_MAX);
+      if (!d) return 0;
+      var before = Game.trust();
+      Game.s.trust = Util.clamp(before + d, 0, 100);
+      Game.save(); Game.emit('trust');
+      return Game.s.trust - before;
+    },
+    setTrust: function (n) {
+      Game.s.trust = Util.clamp(Math.round(Number(n) || 0), 0, 100);
+      Game.save(); Game.emit('trust');
+    },
+    /* What the client can tell on its own from the player's line. */
+    trustRules: function (userText) {
+      var t = String(userText || '');
+      var total = 0, why = [];
+      TRUST_RULES.forEach(function (r) {
+        if (r.re.test(t)) { total += r.d; why.push(r.why); }
+      });
+      return { delta: Util.clamp(total, -TRUST_STEP_MAX, TRUST_STEP_MAX), why: why };
+    },
+    KNOWABLE: KNOWABLE,
+    knows: function (key) { return (Game.s.known || []).indexOf(key) !== -1; },
+    learn: function (keys) {
+      var added = [];
+      (Array.isArray(keys) ? keys : [keys]).forEach(function (k) {
+        k = String(k || '').trim();
+        if (KNOWABLE.indexOf(k) === -1 || Game.knows(k)) return;
+        Game.s.known.push(k); added.push(k);
+      });
+      if (added.length) { Game.save(); Game.emit('known'); }
+      return added;
+    },
+    /* Prompt rubric: the current band and only the current band, plus the
+       delta rules the model is asked to report. The number alone would be
+       ignored or improvised; the band text is what steers behaviour. */
+    trustBlock: function () {
+      var t = Game.trust(), b = trustBandOf(t);
+      var L = ['## 信頼度（あたし → 相手）'];
+      L.push('- 現在：' + t + '/100「' + b[1] + '」。' + b[2]);
+      L.push('- 段階：0-19 警戒 / 20-39 顔見知り / 40-59 友好 / 60-79 信頼 / 80-100 親友。今の段階の振る舞いから外れない。');
+      L.push('- 変化の目安（<state> の trust_delta で報告）：親切・誠実・約束を守る +1〜+3、一緒に危険を切り抜けた +5、嘘・敵意・失礼 −5〜−10、体に触れる・脅す・無理強い −20（その日は警戒のまま）。1ターン最大 ±20。');
+      return L.join('\n');
     },
 
     /* -------------------------------------------------------- prompt block */

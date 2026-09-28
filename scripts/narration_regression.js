@@ -37,6 +37,14 @@ ok(beats[3].text === 'a gull cries over the harbour', 'the asterisks are strippe
 ok(beats[6].text === '(sigh) that boat is still broken though.',
    'a line that only contains a parenthesis is still speech');
 
+const inl = Npc.split("Never met anyone who *actually* did it. *points toward a gap in the trees* Come on.");
+ok(inl.length === 3 && inl[0].speaker === 'ryza' && inl[0].text === 'Never met anyone who actually did it.' &&
+   inl[1].speaker === 'narrator' && inl[1].text === 'points toward a gap in the trees' && inl[2].speaker === 'ryza',
+   'one-word *emphasis* is unwrapped in place; a multi-word *action* becomes narration (' + inl.map(b => b.speaker).join(',') + ')');
+const inp = Npc.split("Twenty potions? (She counts on her fingers, murmuring.) Easy-peasy! (sigh) fine.");
+ok(inp.length === 3 && inp[1].speaker === 'narrator' && /counts on her fingers/.test(inp[1].text) && /\(sigh\) fine/.test(inp[2].text),
+   'a long (stage direction) inside speech splits out; a short (sigh) stays in the line');
+
 const spoken = Npc.spokenText(beats);
 ok(spoken.indexOf('朝の光') === -1 && spoken.indexOf('gull') === -1,
    'narration never reaches the synthesizer');

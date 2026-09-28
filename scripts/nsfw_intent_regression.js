@@ -116,7 +116,8 @@ if (A && A.parseTaggedReply) {
      'refuse = leave undress, undress = on');
   ok(!/すぐ脱がなくて/.test(sys), 'old delay-undress phrasing is gone');
   ok(tag.indexOf('tod:') === -1, 'real mode tag line has no tod slot');
-  ok(!/<state>/.test(sys), 'no RPG context → no <state> example');
+  ok(!/stamina_delta/.test(sys) && /trust_delta/.test(sys),
+     'no RPG context → no inventory <state> example, only the trust/learned one');
   N.onTurn({ nsfw: true });
   const sysOn = A.buildSystemPrompt('chat', 'voice', '', 'ja', N.screenFact());
   ok(/\|undress:on\|/.test(sysOn) && /肌が見えている/.test(sysOn),

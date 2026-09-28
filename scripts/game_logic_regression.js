@@ -341,5 +341,29 @@ const adv = Api.parseTaggedReply('おやすみ<state>{"time_advance":3}</state>'
 ok(adv.state && Number(adv.state.time_advance) === 3, 'LLM time_advance parses');
 ok(adv.emotion == null, 'untagged reply does not default emotion to neutral');
 
+/* ---- trust + known facts (relationship state; applyDelta is the write path) */
+Game.setTrust(10);
+ok(Game.trust() === 10 && Game.trustBand() === '警戒', 'trust 10 = wary band');
+Game.applyDelta({ trust_delta: 45 }, 'llm');
+ok(Game.trust() === 30, 'a single delta is clamped to ±20 (10 → 30, not 55)');
+Game.applyDelta({ trust_delta: -100 }, 'llm');
+ok(Game.trust() === 10, 'negative deltas clamp the same way');
+Game.setTrust(95); Game.applyDelta({ trust_delta: 20 }, 'llm');
+ok(Game.trust() === 100 && Game.trustBand() === '親友', 'trust caps at 100, top band');
+const grab = Game.trustRules("Come on sweetheart, *grabs her wrist* just a little kiss for uncle Gerald");
+ok(grab.delta === -20 && grab.why.indexOf('threat') !== -1, 'client rule: a grab / kiss demand is -20');
+const thanks = Game.trustRules('Thank you so much, that really helped!');
+ok(thanks.delta === 1 && thanks.why[0] === 'kindness', 'client rule: thanks is +1');
+ok(Game.trustRules('What time is it?').delta === 0, 'neutral line: no rule fires');
+ok(/現在：100\/100「親友」/.test(Game.trustBlock()) && /trust_delta/.test(Game.trustBlock()),
+   'trust block names the band and the delta rules');
+Game.s.known = [];
+ok(!Game.knows('name'), 'nothing known at first');
+Game.applyDelta({ learned: ['name', 'bogus', 'hobby'] }, 'llm');
+ok(Game.knows('name') && Game.knows('hobby') && Game.s.known.length === 2, 'learned[] adds only knowable keys, once');
+ok(Game.learn(['name']).length === 0, 'learning a known fact again is a no-op');
+const trustSnap = Game.snapshot();
+ok(trustSnap.trust === 100 && trustSnap.known.indexOf('name') !== -1, 'trust and known ride the save-slot snapshot');
+
 console.log(failures ? '\n' + failures + ' FAILURES' : '\nALL PASS');
 process.exit(failures ? 1 : 0);

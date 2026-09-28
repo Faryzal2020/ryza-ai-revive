@@ -59,6 +59,31 @@
      stay accepted for models that follow the older NPC protocol. A line that
      merely *contains* a parenthesis ("(sigh) hello") is still speech. */
   var NARRATION_LINE = /^\s*(?:[（(]([^()（）]*)[)）]|\*([^*]+)\*)\s*$/;
+  /* Inside a speech line: a (stage direction) becomes its own narration beat
+     so TTS never reads "(she counts on her fingers)"; markdown emphasis that
+     chat models sprinkle in (*way*, **But.**) is unwrapped since the app
+     renders plain text. Short interjections like "(sigh)" stay in the line. */
+  /* *…* counts as an action only with two or more words: "*points toward a
+     gap*" is narration, "*actually*" is emphasis and just loses its stars. */
+  var INLINE_PAREN = /[（(]([^()（）]{12,})[)）]|\*([^*\n ]+(?: [^*\n]+)+)\*/g;
+  function unmark(s) {
+    return String(s).replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*\n]+)\*/g, '$1')
+      .replace(/__([^_]+)__/g, '$1').replace(/^#+\s*/g, '');
+  }
+  function pushSpeech(push, kind, id, label, line) {
+    var rest = '', last = 0, m;
+    INLINE_PAREN.lastIndex = 0;
+    while ((m = INLINE_PAREN.exec(line))) {
+      var before = line.slice(last, m.index).trim();
+      if (before) rest += (rest ? ' ' : '') + before;
+      if (rest) { push(kind, id, label, unmark(rest)); rest = ''; }
+      push('narrator', '', '', unmark((m[1] != null ? m[1] : m[2]).trim()));
+      last = m.index + m[0].length;
+    }
+    var tail = line.slice(last).trim();
+    if (tail) rest += (rest ? ' ' : '') + tail;
+    if (rest) push(kind, id, label, unmark(rest));
+  }
 
   function world() { return global.World || null; }
 
@@ -122,20 +147,20 @@
         m = SPEAKER[s].re.exec(line);
         if (m) { matched = SPEAKER[s].kind; break; }
       }
-      if (matched === 'narrator') { push('narrator', '', '', line.replace(SPEAKER[0].re, '')); continue; }
+      if (matched === 'narrator') { push('narrator', '', '', unmark(line.replace(SPEAKER[0].re, ''))); continue; }
       if (!matched) {
         var nl = NARRATION_LINE.exec(line);
-        if (nl) { push('narrator', '', '', (nl[1] != null ? nl[1] : nl[2]).trim()); continue; }
+        if (nl) { push('narrator', '', '', unmark((nl[1] != null ? nl[1] : nl[2]).trim())); continue; }
       }
       if (matched === 'translation') { push('translation', '', '', line.replace(SPEAKER[1].re, '')); continue; }
-      if (matched === 'ryza') { push('ryza', '', '', line.replace(SPEAKER[2].re, '')); continue; }
+      if (matched === 'ryza') { pushSpeech(push, 'ryza', '', '', line.replace(SPEAKER[2].re, '')); continue; }
       if (matched === 'npc') {
         var raw = m[1];
         var id = resolveId(raw);
-        push('npc', id, nameOf(id, String(raw).trim()), line.replace(SPEAKER[3].re, ''));
+        pushSpeech(push, 'npc', id, nameOf(id, String(raw).trim()), line.replace(SPEAKER[3].re, ''));
         continue;
       }
-      push('ryza', '', '', line);
+      pushSpeech(push, 'ryza', '', '', line);
     }
     if (current) beats.push(current);
     return beats.filter(function (b) { return b.text.trim() !== ''; });
