@@ -740,8 +740,10 @@
       root.appendChild(hero);
 
       var day = Welcome.dayCount();
-      var lang = 'zh';
-      try { lang = I18n.lang() || 'zh'; } catch (e) {}
+      var lang = 'en';
+      /* I18n.lang is a string (it was called as a function here, which threw
+         and left every locale on the Chinese captions) */
+      try { lang = (typeof I18n.lang === 'function' ? I18n.lang() : I18n.lang) || 'en'; } catch (e) {}
       var list = document.createElement('div');
       list.className = 'wm-groups';
 

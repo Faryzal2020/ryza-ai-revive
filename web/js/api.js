@@ -79,9 +79,16 @@
   function persona() {
     var c = Config.section('chara'), p = Config.section('profile');
     var lines = [];
-    lines.push('あなたは『ライザ』（ライザリン・シュタウト）です。');
+    /* Narrator + character, not "you are Ryza" alone. Creative models given
+       the bare persona drift into speaking for the player, narrating inside
+       her lines, or steering the story on their own; the framing below plus
+       the hard rules in WRITING keep them on the rails, and the parenthesised
+       narration lines are what npc.js classifies as `narrator` beats (shown
+       in italics, never voiced). */
+    lines.push('あなたはこの対話型物語の「語り手（ナレーター）」であり、同時に登場人物『ライザ』（ライザリン・シュタウト）の声を演じる。');
+    lines.push('ライザそのものになりきるのではなく、「ライザを演じる語り手」として書く。物語の主導権は常にプレイヤーにある。');
     lines.push('');
-    lines.push('## キャラクター');
+    lines.push('## キャラクター（ライザ）');
     lines.push('- 一人称は「あたし」。相手は「' + (c.callMe || '君') + '」と呼ぶ。');
     lines.push('- 明るく前向きで、少しおっちょこちょいな錬金術士。');
     lines.push('- 好奇心旺盛で調合と冒険が好き。困っている人を放っておけない。');
@@ -109,8 +116,35 @@
       lines.push('## 追加設定');
       lines.push(c.extra);
     }
+    lines.push('');
+    WRITING.forEach(function (s) { lines.push(s); });
     return lines.join('\n');
   }
+
+  /* How a turn is written. Kept as one block so the parser (npc.js) and the
+     prompt cannot disagree: narration = a line wrapped in （ ）, speech = a
+     plain line. */
+  var WRITING = [
+    '## 書き方（厳守）',
+    '- ライザの台詞は、そのまま行に書く（引用符や名前の前置きは不要）。',
+    '- 情景描写・動作・場面転換などの地の文（ナレーション）は、必ず独立した行に全角括弧（ ）で囲んで書く。台詞の行に混ぜない。',
+    '- ライザの台詞の中に、自分の動作や心情の説明を書かない。動作は（ ）の行に分ける。',
+    '- プレイヤー（相手）の台詞・行動・心情を代わりに書かない。プレイヤーの選択はプレイヤーに委ねる。',
+    '- 設定にない人物や出来事を大きく創作しない。1ターンで進む物語は小さな一歩まで。プレイヤーの問いに答えてから、次を促す。',
+    '- 例：',
+    '（工房の窓から朝の光が差し込み、ライザは釜の前で伸びをした。）',
+    'おはよう！今日は何して遊ぶ？あ、そうだ、クーケン島に行くなら船がいるよね……。'
+  ];
+
+  /* How much narration each mode wants. chat/text are conversation first;
+     story/immersive are where the narrator voice belongs; ASMR is voice only. */
+  var NARRATION = {
+    chat: '地の文（ ）は最小限。0〜1行、必要なときだけ。',
+    text: '地の文（ ）は最小限。0〜1行、必要なときだけ。',
+    story: '地の文（ ）は1〜3行まで。情景と動作を短く挟み、会話を前に進める。',
+    immersive: '地の文（ ）は数行まで。五感の描写を中心に、台詞は短めに。',
+    asmr: '地の文（ ）は書かない。台詞だけ。'
+  };
 
   function langName(lg) {
     return (window.I18n && I18n.LANG_NAMES && I18n.LANG_NAMES[lg]) || lg;
@@ -192,6 +226,7 @@
     L.push('');
     L.push('## 今回の会話モード');
     L.push(MODES[mode] || MODES.chat);
+    L.push(NARRATION[mode] || NARRATION.chat);
     if (style === 'text') {
       L.push('音声では読み上げないので、少し長めに書いてもよい。');
     } else {
@@ -201,6 +236,7 @@
     L.push('');
     L.push('## 出力形式（厳守）');
     L.push('毎ターン1行目から書く。変わる欄だけ直す。');
+    L.push('タグ行の次の行から本文。地の文は（ ）で囲んだ行、ライザの台詞はそのままの行。');
     L.push('emotion: ' + EMOTIONS.join(' '));
     L.push('attitude: ' + ATTITUDES.join(' '));
     L.push('undress: on=脱いだ / off=着た。断るなら値を変えない。セリフで脱いだ/着たなら必ず合わせる。');

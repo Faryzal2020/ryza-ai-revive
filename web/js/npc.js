@@ -54,6 +54,11 @@
     { kind: 'ryza',     re: /^\s*(?:莱莎(?:琳)?|ライザ(?:リン)?|ryza|ryza(?:lin)?)\s*[:：]\s*/i },
     { kind: 'npc',      re: /^\s*角色\s*\[\s*([^\]\r\n]+?)\s*\]\s*[:：]\s*/ }
   ];
+  /* Unlabelled narration: a whole line wrapped in （ ）, ( ), or *…*. This is
+     the format the prompt asks for (api.js WRITING); the prefix forms above
+     stay accepted for models that follow the older NPC protocol. A line that
+     merely *contains* a parenthesis ("(sigh) hello") is still speech. */
+  var NARRATION_LINE = /^\s*(?:[（(]([^()（）]*)[)）]|\*([^*]+)\*)\s*$/;
 
   function world() { return global.World || null; }
 
@@ -118,6 +123,10 @@
         if (m) { matched = SPEAKER[s].kind; break; }
       }
       if (matched === 'narrator') { push('narrator', '', '', line.replace(SPEAKER[0].re, '')); continue; }
+      if (!matched) {
+        var nl = NARRATION_LINE.exec(line);
+        if (nl) { push('narrator', '', '', (nl[1] != null ? nl[1] : nl[2]).trim()); continue; }
+      }
       if (matched === 'translation') { push('translation', '', '', line.replace(SPEAKER[1].re, '')); continue; }
       if (matched === 'ryza') { push('ryza', '', '', line.replace(SPEAKER[2].re, '')); continue; }
       if (matched === 'npc') {
@@ -296,7 +305,7 @@
       L.push('');
       L.push(Npc.frequency(opts.appCfg));
       L.push('この回に登場する場合だけ、行頭に「角色[ID]：」を付けて本人の台詞を書く（IDは上の一覧のまま）。');
-      L.push('あなた自身（ライザ）の台詞は「莱莎：」、地の文は「旁白：」で始める。前置きのない行はライザの台詞として扱われる。');
+      L.push('あなた自身（ライザ）の台詞は「莱莎：」、地の文は「旁白：」で始めるか、行全体を（ ）で囲む。前置きのない行はライザの台詞として扱われる。');
       L.push('行は必ず話者で始めること。台詞が複数行にわたる場合も、続きの行に同じ話者を付け直す（付け忘れるとライザの台詞として扱われる）。');
       L.push('NPCや旁白には表情・動作・音声のタグを付けない（それらの資源は存在しない）。一度に登場させるのは1人、多くても2人まで。');
       /* 译文行：只显示、不朗读。仅在「回复语言 ≠ 玩家界面语言」时才有意义，

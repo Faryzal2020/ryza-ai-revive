@@ -7,6 +7,8 @@
   'use strict';
 
   var MEM_KEY = 'ryza.memory.v1';
+  var HIST_KEY = 'ryza.history.v1';   /* the running transcript, so a relaunch resumes the chat */
+  var HIST_MAX = 80;                  /* messages kept on disk (the request builder trims further) */
   /* The save-slot key lives with the slot code (settings.js) — a closure-local
      const in this file is invisible there, which is exactly how the slots broke. */
   var HOME_STAGE = 'stage_01_001_04';       // ライザの家 — the safe place to sleep
@@ -94,12 +96,24 @@
       r.querySelectorAll('[data-i18n-title]').forEach(function (el) {
         el.title = I18n.t(el.getAttribute('data-i18n-title'));
       });
+      /* The document shell follows the UI language too: <html lang> drives
+         font selection / synthetic italics, and the tab title used to stay
+         Japanese whatever the picker said. */
+      if (!root && typeof document !== 'undefined') {
+        try {
+          var lg = I18n.lang || 'en';
+          var tag = { zh: 'zh-CN', 'zh-tw': 'zh-TW', 'pt-br': 'pt-BR' }[lg] || lg;
+          if (document.documentElement) document.documentElement.lang = tag;
+          document.title = I18n.tc('title.doc', I18n.t('title.heading') + ' — Ryza Chat');
+          if (document.body) document.body.classList.toggle('lang-cjk', /^(zh|ja)/.test(lg));
+        } catch (e) {}
+      }
     },
 
     _syncPanelFrac: function () {
       if (!window.Avatar || Avatar.panelFraction()) return;   // measure once
       var vh = window.innerHeight || 1;
-      Avatar.setPanelFraction(Math.min(0.55, Math.min(340, Math.max(240, 0.34 * vh)) / vh));
+      Avatar.setPanelFraction(Math.min(0.55, Math.min(300, Math.max(250, 0.31 * vh)) / vh));
     },
 
     _fitUi: function () {
@@ -123,7 +137,7 @@
 
     /* -------------------------------------------------------------- boot */
     init: function () {
-      I18n.setLang(Config.section('app').lang || 'zh');
+      I18n.setLang(Config.section('app').lang || 'en');
       App.applyI18n(document);
       var inpEl = document.getElementById('input');
       if (inpEl) inpEl.placeholder = I18n.tc('input.hint', inpEl.placeholder);
@@ -135,6 +149,8 @@
       App.audio.crossOrigin = 'anonymous';
       try { App.memory = JSON.parse(localStorage.getItem(MEM_KEY) || '[]'); }
       catch (e) { App.memory = []; }
+      App.loadHistory();
+      App._renderHistory();
 
       Game.load();
       Daily.load();
@@ -197,9 +213,9 @@
 
         Onboarding.showTitle(function () {
           if (!Onboarding.isDone()) {
-            App._inTutorial = true;
+            App._inTutorial = true; App._tutClass(true);
             Onboarding.start(function () {
-              App._inTutorial = false;
+              App._inTutorial = false; App._tutClass(false);
               App.enterGame(true);
             });
           } else App.enterGame(false);
@@ -285,7 +301,7 @@
           if (res.sail) App._onSailed();
           if (res.line) {
             if (res.faint) App._showFaint();
-            else App.showBubble(res.line);
+            else App.showBubble(res.line, 'narration');
             if (window.Sound) {
               if (res.ok) Sound.se('quest_clear');
               else if (!res.faint) Sound.se('touch_start');
@@ -461,7 +477,7 @@
       if (skipBtn) skipBtn.classList.add('hidden');
       var ls = document.getElementById('log-sub');
       if (ls) ls.classList.remove('tut');
-      App._inTutorial = false;
+      App._inTutorial = false; App._tutClass(false);
       App.updateHud();
       var st = Config.section('state');
       Sound.setPlace(st.stage, st.tod, World.backgroundFor(st.stage));
@@ -690,12 +706,11 @@
          The running transcript (talk_conversation_log) opens by tapping the
          line itself. */
       var logT = document.getElementById('btn-log-toggle');
-      if (logT) logT.onclick = function () {
-        var phone = document.getElementById('phone');
-        var open = phone.classList.toggle('panel-collapsed');
-        var arrow = document.querySelector('#btn-log-toggle img');
-        if (arrow) arrow.style.transform = open ? 'rotate(180deg)' : '';
-        /* no camera re-solve — the window is frozen (see _syncPanelFrac) */
+      if (logT) logT.onclick = function () { App.setPanelExpanded(); };
+      var logMenu = document.getElementById('btn-log-menu');
+      if (logMenu) logMenu.onclick = function () {
+        var isHidden = document.getElementById('sheet-mode').classList.contains('hidden');
+        if (isHidden) App.openSheet('sheet-mode'); else App.closeSheets();
       };
       var spd = document.getElementById('btn-speed');
       if (spd) spd.onclick = function () { App._cycleTextSpeed(); };
@@ -994,7 +1009,7 @@
           html += '<img alt="" src="assets/icons/' +
             (i < a.filled ? 'stamina_apple_filled' : 'stamina_apple_empty') + '.svg">';
         }
-        html += ' <b>' + (Game.cheat() ? '∞' : Game.s.stamina) + '</b>';
+        if (Game.cheat()) html += ' <b>∞</b>';
         chip.innerHTML = html;
       }
       var m = document.getElementById('hud-money-n');
@@ -1020,7 +1035,7 @@
       }));
       var npcs = World.npcsAt(stageId, st.day || 1);
       var names = Game.meetCharas(npcs, st.day);
-      if (names.length) Game.remember(names.join('、') + ' と出会った。');
+      if (names.length) Game.remember(I18n.tf('mem.met', '{names} と出会った。', { names: names.join(', ') }));
       Quests.progressEvent('explore');
       App.showView('talk');
     },
@@ -1033,7 +1048,7 @@
       Config.set('state.tod', tod);
       if (prev === 'ngt' && tod === 'mor' && s.stage === HOME_STAGE) {
         Game.refill();
-        Game.remember('安全なおうちでぐっすり眠った。');
+        Game.remember(I18n.tc('mem.sleep', '安全なおうちでぐっすり眠った。'));
         App.toast(I18n.t('stamina.slept'));
       }
       App._loadSceneFor(s.stage, tod);
@@ -1123,7 +1138,7 @@
       }
       if (fromTod === 'ngt' && nextTod === 'mor' && dest === HOME_STAGE) {
         Game.refill();
-        Game.remember('安全なおうちでぐっすり眠った。');
+        Game.remember(I18n.tc('mem.sleep', '安全なおうちでぐっすり眠った。'));
         App.toast(I18n.t('stamina.slept'));
       }
       if (nextTod !== fromTod) Config.set('state.tod', nextTod);
@@ -1348,8 +1363,8 @@
         e.stopPropagation();
         if (window.Onboarding) Onboarding.skipTutorial();
       };
-      var bubble = document.getElementById('bubble');
-      if (bubble) bubble.addEventListener('click', function () {
+      var logBody = document.getElementById('log-body');
+      if (logBody) logBody.addEventListener('click', function () {
         if (App._inTutorial && window.Onboarding) Onboarding.tutorialAdvance();
       });
       document.getElementById('overlay-prologue').onclick = function () { Onboarding.prologueNext(); };
@@ -1444,7 +1459,7 @@
       App._loadSceneFor(HOME_STAGE, tod);
       Sound.setPlace(HOME_STAGE, tod, World.backgroundFor(HOME_STAGE));
       Game.refill();
-      Game.remember('安全なおうちでぐっすり眠った。');
+      Game.remember(I18n.tc('mem.sleep', '安全なおうちでぐっすり眠った。'));
       document.getElementById('overlay-faint').classList.add('hidden');
       App.showView('talk');
       App.toast(I18n.t('stamina.slept'));
@@ -1452,7 +1467,7 @@
     },
 
     _onSailed: function () {
-      Game.remember('船でクーケン島を出航した！');
+      Game.remember(I18n.tc('mem.sail', '船でクーケン島を出航した！'));
       App.toast(I18n.t('toast.sailed'));
       App.showView('world');
       App.renderWorld();
@@ -1704,12 +1719,9 @@
         },
         onOk: function () {
           App.history = [];
+          App.saveHistory();
           if (window.Nsfw) Nsfw.reset();
-          App._pages = []; App._pageSel = -1;
-          var dots = document.getElementById('log-dots');
-          if (dots) dots.innerHTML = '';
-          var bub = document.getElementById('bubble');
-          if (bub) bub.classList.remove('hidden');
+          App._clearMsgs();
           var bt = document.getElementById('bubble-text');
           if (bt) bt.textContent = '';
           App.showView('talk');
@@ -1741,6 +1753,7 @@
       App._lastText = text;
       var retryBar = document.getElementById('retry-bar');
       if (retryBar) retryBar.classList.add('hidden');
+      App._appendMsg('user', text);
       App.speaking = true;
       document.getElementById('btn-send').disabled = true;
       App.showTyping();
@@ -1771,6 +1784,7 @@
           if (window.Turn && Turn.finishTurn) Turn.finishTurn();
           document.getElementById('btn-send').disabled = false;
           App.history.push({ role: 'user', content: text });
+          App.saveHistory();
           App.remember('user', text);
           App.remember('ryza', reply.text);
           try { if (window.Memory) Memory.ingest(text, reply.text); } catch (e) {}
@@ -1795,6 +1809,7 @@
             role: 'assistant',
             content: Api.formatHistoryReply(reply.text)
           });
+          App.saveHistory();
           App._sayReply(reply, turnEpoch);
           /* 助手这一轮进长期记忆的待归纳队列（被 STALE 丢弃的回复不会走到这里） */
           if (window.LongTerm) {
@@ -1836,7 +1851,7 @@
             : kind === 'model' ? '（……そのモデル名、あたしには呼べないみたい。設定を確認して。）'
             : kind === 'timeout' ? '（……返事を待ってるのに、届いてないみたい。設定のベースURLとモデル名、見てくれる？）'
             : kind === 'net' ? '（……そのアドレスに辿り着けないみたい。設定のベースURL、合ってる？）'
-            : '（……ごめん、今ちょっと繋がらないみたい。少し待ってからもう一回。）'));
+            : '（……ごめん、今ちょっと繋がらないみたい。少し待ってからもう一回。）'), 'narration');
         });
     },
 
@@ -1892,36 +1907,30 @@
         mine = '';                       /* 不写原句，等下面只显示译文行 */
       }
 
-      var showOthers = function () {
-        var i = 0;
-        (function next() {
-          if (i >= others.length) return;
-          var b = others[i++];
-          var lab = Npc.labelFor(b);
-          App.typeBubble(lab ? lab + '：' + b.text : b.text, next);
-        })();
-      };
-
-      App.typeBubble(mine, function () {
-        /* The typewriter runs at the player's text speed, and the player can
-           send a new message while it is still going. Showing the line is fine
-           (it is what she said), but by the time it finishes this reply may no
-           longer be the current turn — and voicing it then speaks the
-           superseded line over the new one, with the new reply queued behind
-           it. */
-        if (!App._turnCurrent(turnEpoch)) return;
-        if (mine) App.speakThen(mine, reply.emotion);
-        if (!others.length) return;
-        if (window.Turn && Turn.isSpeaking()) {
-          var off = Turn.on(function (ev) {
-            if (ev.type !== 'end' && ev.type !== 'cancel') return;
-            off();
-            showOthers();
-          });
-        } else {
-          showOthers();
+      var hideMine = !showOriginal && others.some(function (b) { return b.speaker === 'translation'; });
+      App._removeTyping();
+      var i = 0;
+      (function next() {
+        if (i >= beats.length) {
+          /* The typewriter runs at the player's text speed, and the player can
+             send a new message while it is still going. Showing the line is
+             fine (it is what she said), but by the time it finishes this reply
+             may no longer be the current turn — voicing it then would speak
+             the superseded line over the new one. */
+          if (!App._turnCurrent(turnEpoch)) return;
+          if (mine) App.speakThen(mine, reply.emotion);
+          return;
         }
-      });
+        var b = beats[i++];
+        if (b.speaker === 'ryza') {
+          if (hideMine) { next(); return; }
+          App.typeBubble(b.text, next, 'ryza');
+          return;
+        }
+        App.showBubble(b.text, App._roleOfBeat(b),
+          b.speaker === 'npc' ? Npc.labelFor(b) : '');
+        next();
+      })();
     },
 
     speakThen: function (text, emotion) {
@@ -2067,8 +2076,6 @@
        a ⇧ that expands the whole running conversation. _bubbleKeep/_bubbleHold
        stay as no-op seams (playUrl/speakThen still call them); nothing
        self-hides anymore, so the old fade race is structurally impossible. */
-    _pages: [],
-    _pageSel: -1,
     _typeGen: 0,
     _bubbleKeep: function () {
       if (App._bubbleTimer) { clearTimeout(App._bubbleTimer); App._bubbleTimer = null; }
@@ -2085,34 +2092,6 @@
                                 : I18n.tc('input.hint', inp.placeholder);
     },
 
-    _pushPage: function (text) {
-      if (!text) return;
-      var last = App._pages[App._pages.length - 1];
-      if (last === text) return;
-      App._pages.push(text);
-      if (App._pages.length > 5) App._pages.shift();
-      App._pageSel = App._pages.length - 1;
-      App._renderDots();
-    },
-    _renderDots: function () {
-      var host = document.getElementById('log-dots');
-      if (!host) return;
-      host.innerHTML = '';
-      if (App._pages.length < 2) return;
-      App._pages.forEach(function (t, i) {
-        var d = document.createElement('i');
-        if (i === App._pageSel) d.className = 'on';
-        d.title = (i + 1) + ' / ' + App._pages.length;
-        d.onclick = function () {
-          App._pageSel = i;
-          document.getElementById('bubble-text').textContent = App._pages[i];
-          var lb = document.getElementById('log-body');
-          if (lb) lb.scrollTop = 0;   // reviewing an older message: read from its top
-          App._renderDots();
-        };
-        host.appendChild(d);
-      });
-    },
     _cycleTextSpeed: function () {
       var cur = Config.textSpeed();
       var idx = 0;
@@ -2126,80 +2105,186 @@
       if (!b) return;
       var cur = Config.textSpeed();
       var label = { 30: '×1', 18: '×1.5', 12: '×2', 8: '×3' };
-      b.textContent = label[cur] || (cur <= 10 ? '×3' : cur <= 15 ? '×2' : cur <= 24 ? '×1.5' : '×1');
+      var txt = label[cur] || (cur <= 10 ? '×3' : cur <= 15 ? '×2' : cur <= 24 ? '×1.5' : '×1');
+      var icon = null;
+      (Config.TEXT_SPEEDS || []).forEach(function (o) { if (o.v === cur) icon = o.icon; });
+      if (!icon) icon = { '×1': 'text_speed_1x', '×1.5': 'text_speed_15x', '×2': 'text_speed_2x', '×3': 'text_speed_3x' }[txt];
+      b.innerHTML = '<img src="assets/icons/' + icon + '.svg" alt="' + txt + '">';
+      b.setAttribute('aria-label', txt);
+    },
+
+    /* ⌃⌄ — the conversation grows to most of the screen, HUD + buttons move
+       to the top, the stage dims (CSS on #phone.panel-expanded). */
+    setPanelExpanded: function (on) {
+      var phone = document.getElementById('phone');
+      if (!phone) return;
+      if (on === undefined) on = !phone.classList.contains('panel-expanded');
+      phone.classList.toggle('panel-expanded', !!on);
+      var curtain = document.getElementById('scene-curtain');
+      if (curtain) curtain.classList.toggle('dim', !!on);
+      var b = document.getElementById('btn-log-toggle');
+      if (b) b.title = I18n.t(on ? 'talk.shrink' : 'talk.expand');
+      App._scrollLog();
     },
 
     /* a new line always brings the panel back (official: she never talks
        into a collapsed strip) */
-    _panelUp: function () {
-      var phone = document.getElementById('phone');
-      if (phone && phone.classList.contains('panel-collapsed')) {
-        phone.classList.remove('panel-collapsed');
-        var arrow = document.querySelector('#btn-log-toggle img');
-        if (arrow) arrow.style.transform = '';
+    _panelUp: function () { App._scrollLog(); },
+    /* body.in-tutorial shows the identity row (badge + Skip) above the text */
+    _tutClass: function (on) {
+      try { document.body.classList.toggle('in-tutorial', !!on); } catch (e) {}
+    },
+
+    /* ------------------------------------------------ message stream
+       The conversation is a list of rows (official: your line sits on the
+       right like a messenger, her words are plain, narration is italic,
+       islanders carry a name). The newest Ryza/narration row carries
+       id="bubble" / "bubble-text" so the tutorial and the boot smoke can
+       still reach "the current line". */
+    _msgs: [],
+    MSG_MAX: 60,
+    _appendMsg: function (role, text, name) {
+      var list = document.getElementById('log-list');
+      if (!list) return null;
+      var row = document.createElement('div');
+      row.className = 'msg ' + role;
+      if (name) {
+        var lab = document.createElement('b');
+        lab.className = 'msg-name';
+        lab.textContent = name;
+        row.appendChild(lab);
       }
+      var span = document.createElement('span');
+      span.className = 'msg-text';
+      span.textContent = text || '';
+      row.appendChild(span);
+      if (role === 'ryza' || role === 'narration') {
+        var old = document.getElementById('bubble');
+        var oldT = document.getElementById('bubble-text');
+        if (old && old.removeAttribute) old.removeAttribute('id');
+        if (oldT && oldT.removeAttribute) oldT.removeAttribute('id');
+        row.id = 'bubble';
+        span.id = 'bubble-text';
+      }
+      list.appendChild(row);
+      App._msgs.push({ role: role, text: text || '', name: name || '' });
+      while (App._msgs.length > App.MSG_MAX) {
+        App._msgs.shift();
+        if (list.firstChild && list.removeChild) list.removeChild(list.firstChild);
+      }
+      App._scrollLog();
+      return row;
+    },
+    _clearMsgs: function () {
+      App._msgs = [];
+      App._typingRow = null;
+      var list = document.getElementById('log-list');
+      if (list) list.innerHTML = '';
+    },
+    _roleOfBeat: function (b) {
+      return b.speaker === 'ryza' ? 'ryza'
+        : b.speaker === 'narrator' ? 'narration'
+        : b.speaker === 'translation' ? 'translation' : 'npc';
+    },
+    /* Boot: the stream is rebuilt from the persisted transcript, so a
+       relaunch opens on the last exchange instead of an empty panel. */
+    _renderHistory: function () {
+      App._clearMsgs();
+      (App.history || []).slice(-30).forEach(function (m) {
+        if (m.role === 'user') { App._appendMsg('user', m.content); return; }
+        var txt = m.content;
+        try { if (window.Api && Api.parseTaggedReply) txt = Api.parseTaggedReply(m.content).text; } catch (e) {}
+        var beats = (window.Npc && Npc.split) ? Npc.split(txt)
+          : [{ speaker: 'ryza', text: String(txt || '') }];
+        beats.forEach(function (b) {
+          App._appendMsg(App._roleOfBeat(b), b.text,
+            b.speaker === 'npc' && Npc.labelFor ? Npc.labelFor(b) : '');
+        });
+      });
+    },
+    _removeTyping: function () {
+      var t = App._typingRow;
+      App._typingRow = null;
+      if (t && t.remove) t.remove();
     },
 
     showTyping: function () {
       App._panelUp();
-      var b = document.getElementById('bubble');
-      var vig = document.getElementById('vignette');
-      if (b) {
-        b.classList.remove('hidden');
-        b.classList.add('typing', 'speaking');
+      App._removeTyping();
+      var row = App._appendMsg('ryza', '');
+      if (row) {
+        row.classList.add('typing', 'speaking');
+        var span = document.getElementById('bubble-text');
+        if (span) span.innerHTML = '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+        App._msgs.pop();                 /* the indicator is not a message */
+        App._typingRow = row;
       }
-      document.getElementById('bubble-text').innerHTML =
-        '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+      var vig = document.getElementById('vignette');
       if (vig) vig.classList.add('talk-glow');
       App._inputHint(true);
     },
 
-    showBubble: function (text) {
+    /* role: ryza (default) | narration | npc | translation | user */
+    showBubble: function (text, role, name) {
       App._panelUp();
+      App._removeTyping();
       var vig = document.getElementById('vignette');
       if (vig) vig.classList.remove('talk-glow');
-      var b = document.getElementById('bubble');
-      if (b) b.classList.remove('typing', 'speaking', 'hidden');
       if (Config.section('app').showBubble === false) return;
-      document.getElementById('bubble-text').textContent = text;
-      App._pushPage(text);
+      App._appendMsg(role || 'ryza', text, name);
       App._inputHint(false);
     },
 
-    typeBubble: function (text, done) {
+    typeBubble: function (text, done, role) {
       App._panelUp();
+      App._removeTyping();
       if (App._typeTimer) clearTimeout(App._typeTimer);
       /* generation token: a second chain (retry/alarm while the first line is
          still typing) kills the old one instead of interleaving writes */
       var gen = ++App._typeGen;
-      var b = document.getElementById('bubble');
+      var row = App._appendMsg(role || 'ryza', '');
       var span = document.getElementById('bubble-text');
+      var rec = App._msgs[App._msgs.length - 1];
       var vig = document.getElementById('vignette');
-      if (b) {
-        b.classList.remove('hidden');
-        b.classList.remove('typing');
-        b.classList.add('speaking');
-      }
+      if (row) row.classList.add('speaking');
       if (vig) vig.classList.add('talk-glow');
       var speed = Config.textSpeed();
       var i = 0;
       (function step() {
         if (gen !== App._typeGen) return;
         if (i >= text.length) {
-          if (b) b.classList.remove('speaking');
+          if (row) row.classList.remove('speaking');
           if (vig) vig.classList.remove('talk-glow');
-          App._pushPage(text);
+          if (rec) rec.text = text;
           App._inputHint(false);
           done && done();
           return;
         }
-        span.textContent = text.slice(0, ++i);
+        if (span) span.textContent = text.slice(0, ++i); else i = text.length;
         App._scrollLog();
         App._typeTimer = setTimeout(step, speed);
       })();
     },
     /* a long reply scrolls inside the panel (dots switch between messages;
        scrolling reads THIS one when it overflows) — keeps up with the typewriter */
+    /* Transcript persistence. App.history used to be memory-only, so every
+       launch opened on an empty panel and the model lost the thread; now it is
+       written on each push and read back before the first render. */
+    loadHistory: function () {
+      try {
+        var h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+        App.history = Array.isArray(h) ? h.filter(function (m) {
+          return m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string';
+        }) : [];
+      } catch (e) { App.history = []; }
+    },
+    saveHistory: function () {
+      try {
+        if (App.history.length > HIST_MAX) App.history = App.history.slice(-HIST_MAX);
+        localStorage.setItem(HIST_KEY, JSON.stringify(App.history));
+      } catch (e) {}
+    },
+
     _scrollLog: function () {
       var b = document.getElementById('log-body');
       if (b) b.scrollTop = b.scrollHeight;
@@ -2212,7 +2297,7 @@
       document.getElementById('ring-time').textContent = a.time || '';
       document.getElementById('ring-type').textContent = I18n.t('alarm.type.' + a.type);
       ov.classList.remove('hidden');
-      App.showBubble('（' + I18n.t('alarm.type.' + a.type) + '）');
+      App.showBubble(I18n.t('alarm.type.' + a.type), 'narration');
       Avatar.setEmotion('happy', 'agree');
       var gain = (window.Sound && Sound._gain) ? Sound._gain('voice') : 0.9;
       var vol = Math.max(0, Math.min(1, gain * (Number(a.volume) || 1)));

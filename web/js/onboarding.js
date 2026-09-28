@@ -272,8 +272,7 @@
       document.body.classList.remove('boot');
       if (window.App) {
         App.showView('talk');
-        var phone = document.getElementById('phone');
-        if (phone) phone.classList.remove('panel-collapsed');
+        if (App.setPanelExpanded) App.setPanelExpanded(false);
       }
       if (window.Sound) {
         var st = Config.section('state');
@@ -298,6 +297,7 @@
         if (ls) ls.classList.remove('tut');
         if (window.App) {
           App._inTutorial = false;
+          if (App._tutClass) App._tutClass(false);
           App.updateHud();
         }
         Onboarding._onDone && Onboarding._onDone();
@@ -307,6 +307,7 @@
         ? I18n.tc('tut.' + (Onboarding._tutIdx + 1), line.ja) : line.ja;
       if (window.App) {
         App._inTutorial = true;
+        if (App._tutClass) App._tutClass(true);
         var skipBtn = document.getElementById('btn-tut-skip');
         if (skipBtn) skipBtn.classList.remove('hidden');
         var ls = document.getElementById('log-sub');
@@ -316,7 +317,8 @@
           var hint = (window.I18n && I18n.t('tut.tapHint')) || 'Tap screen to continue';
           ls.textContent = badge + ' (' + (Onboarding._tutIdx + 1) + '/' + TUTORIAL.length + ') · ' + hint;
         }
-        if (App.showBubble) App.showBubble(text);
+        /* the guide's lines are narration (italic), not Ryza's voice */
+        if (App.showBubble) App.showBubble(text, 'narration');
         if (App.speakThen) App.speakThen(text, line.emotion);
       }
       if (window.Avatar && Avatar.setEmotion) Avatar.setEmotion(line.emotion, line.attitude);
@@ -342,6 +344,7 @@
       if (ls) ls.classList.remove('tut');
       if (window.App) {
         App._inTutorial = false;
+        if (App._tutClass) App._tutClass(false);
         App.updateHud();
         App.enterGame(true);
       }

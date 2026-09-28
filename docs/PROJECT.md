@@ -78,6 +78,25 @@ report zero. Cross-module calls go through injected ports, never upward calls: a
 module's dependencies are wired in `App._wirePorts()` and default to inert, which is
 what lets every module load alone in the headless regressions.
 
+**Talk screen (2026-09-28 pass).** The conversation is a message stream (`App._appendMsg`):
+the player's line on the right, Ryza's lines plain, narration in italics (Latin UI locales;
+`body.lang-cjk` keeps CJK upright), islanders with a name label. The newest Ryza/narration row
+carries `id="bubble"` so the tutorial and `boot_smoke` can reach "the current line". The
+transcript persists in `ryza.history.v1` (`App.saveHistory` / `loadHistory`, capped at 80
+messages) and the stream is rebuilt from it at boot, so a relaunch resumes the chat; only
+"new talk", "clear memory" and a slot load replace it. The ⌃⌄ chevron toggles
+`#phone.panel-expanded` (conversation grows, HUD + buttons move to the top, stage dims);
+the extra stage buttons (zoom / posture / replay / favourite) fold behind ⋯
+(`app.quickCollapsed`, default on). Fresh installs start in English (`app.lang`), and
+`App.applyI18n` also sets `<html lang>` and the document title.
+
+**Narrator + Ryza.** The system prompt frames the model as the narrator of an interactive
+story who voices Ryza (`api.js` `persona()` + `WRITING`), with a per-mode narration budget
+(`NARRATION`): speech is a plain line, narration is a whole line wrapped in （ ）. `Npc.split`
+classifies such lines (also `( )` and `*…*`, and the older `narrator:` prefix) as `narrator`
+beats: shown in italics, never sent to TTS or the emotion path. `scripts/narration_regression.js`
+pins the parser to the prompt.
+
 **Side-effect protocol.** Visual fields occupy the first tag line of a model reply. Stamina, inventory, and quest updates occupy a trailing `<state>` JSON block, stripped before display and TTS. The protocol does not require tool calling, which many OpenAI-compatible endpoints omit.
 
 **TTS.** Credential fields are partitioned by provider (`openai` / `qwen` / `fish`) so a host switch cannot reuse the previous base URL or key. The same rule covers speech input (`stt.baseUrl` / `stt.apiKey`).
@@ -143,6 +162,7 @@ desktop implementation and drives the real dev server.
 
 ```powershell
 node scripts/boot_smoke.js
+node scripts/narration_regression.js
 node scripts/back_regression.js
 node scripts/game_logic_regression.js
 node scripts/memory_regression.js

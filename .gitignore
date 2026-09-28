@@ -4,6 +4,7 @@ config/privacy_markers.local.txt
 config/android-tools.local.txt
 .android-tools/
 data-config/
+.claude
 
 # Binary media is not shipped in git. Restore locally with
 # scripts/restore_media.py from a Release package / unpacked desktop tree.

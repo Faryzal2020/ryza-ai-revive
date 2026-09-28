@@ -134,7 +134,7 @@
 
     /* ---- presentation ---- */
     app: {
-      lang: 'zh',                    // zh | zh-tw | ja | en | hi | id | pt-br
+      lang: 'en',                    // zh | zh-tw | ja | en | hi | id | pt-br (fresh installs start in English)
       voice: true,
       volume: 0.9,
       textSpeed: 30,                 // ms per character (×1; see TEXT_SPEEDS)
@@ -148,7 +148,7 @@
       autoSendDelay: 2000,           // ms before auto-send once the mic goes quiet
       npcFrequency: 'normal',          // restrained | normal | frequent | lively (see npc.js)
       bargeIn: false,                // 你开口就打断她（需回声消除；见 voice.js 末尾说明）
-      quickCollapsed: false,         // 收起右侧快捷钮（只留一个展开键，见 index.html #quick-btns）
+      quickCollapsed: true,          // hide the extra stage buttons (zoom/posture/replay/fav); the official column is chevron + flag + bag
       timeMode: 'real',              // real=墙钟(LLM不可拨) | flow=游戏钟(LLM可拨) | manual=🌤
       flowSpeed: 60,                 // flow: in-game minutes per real minute (60 ⇒ 1 game hr / real min)
       cheat: false                   // 作弊：体力 + 金币无限（地图/任务不改）

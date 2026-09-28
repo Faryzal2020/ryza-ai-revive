@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>ライザと話す — Ryza Chat</title>
-<link rel="stylesheet" href="css/app.css?v=model-pick-1">
+<title>Talk with Ryza — Ryza Chat</title>
+<link rel="stylesheet" href="css/app.css?v=stream-1">
 </head>
 <body>
 <div id="phone">
@@ -18,19 +18,19 @@
   <div id="skin-veil"></div>
 </div>
 
-<!-- Official chrome (2026-09-07 UI pass, from the shipped screenshots):
-     one transparent top row — hamburger left, voice/text pill + » right.
-     The old two-row topbar/subbar HUD moved to the stage edges: apples/coin/
-     Lv bottom-left, round quick buttons bottom-right, conversation in a
-     bottom log panel, and the side menu (ショップ…ワールドマップにもどる)
-     slides in on the right. -->
+<!-- Official chrome (2026-09 UI passes, from the shipped screenshots):
+     one transparent top row — round hamburger left, voice/text pill + round
+     grid button right. Apples + coin pill sit bottom-left of the stage, the
+     chevron / flag / bag column bottom-right, and the conversation is a
+     message stream straight on the scene above the input pill. The grid
+     button opens the side menu (shop … back to world map) on the right. -->
 <header id="topbar">
-  <button class="icon-btn plain" id="btn-menu" title="メニュー"><img src="assets/icons/drawer.svg" alt=""></button>
+  <button class="icon-btn plain" id="btn-menu" title="Menu" data-i18n-title="nav.menu"><img src="assets/icons/drawer.svg" alt=""></button>
   <div class="spacer"></div>
-  <button type="button" id="btn-voice" class="voice-pill" title="音声 / テキスト">
+  <button type="button" id="btn-voice" class="voice-pill" title="Voice / Text" data-i18n-title="voice.toggle">
     <canvas id="lottie-voice" width="30" height="30"></canvas><img id="voice-text-ico" class="hidden" src="assets/icons/mode_text.svg" alt=""><span id="voice-pill-label">ボイス</span>
   </button>
-  <button class="icon-btn" id="btn-expand" title="メニュー">»</button>
+  <button class="icon-btn" id="btn-expand" title="Menu" data-i18n-title="nav.menu"><img src="assets/icons/grid.svg" alt=""></button>
 </header>
 
 <div id="side-menu">
@@ -47,7 +47,7 @@
   <div class="drawer-head">
     <img id="drawer-avatar" src="assets/images/chara_icons/ryza.png" alt="">
     <div>
-      <div class="drawer-name">ライザ</div>
+      <div class="drawer-name" data-i18n="chara.ryza">Ryza</div>
       <div class="drawer-sub" id="drawer-day">同伴 1 天</div>
     </div>
   </div>
@@ -78,24 +78,31 @@
     </div>
   </div>
   <div id="quick-btns">
-    <!-- 收起键：＋－挡视线时收起整列（报告原文「没法缩回去」）。收起的只留
-         这一个钮，位置不动，所以能再展开。状态存 app.quickCollapsed。 -->
-    <button type="button" class="round-btn quick-toggle" id="btn-quick-toggle" title="ボタンを隠す" data-i18n-title="hud.quickToggle">✕</button>
-    <!-- 玩家缩放：只放大（下界 1.0，见 avatar.js 的 PLAYER_ZOOM_MIN 说明）。
-         三个键排成一行：走查实测竖排 9 个圆钮会盖住立绘的一大条。 -->
-    <div class="zoom-row">
-      <button type="button" class="round-btn" id="btn-zoom-in" title="拡大" data-i18n-title="zoom.in">＋</button>
-      <button type="button" class="round-btn" id="btn-zoom-out" title="縮小" data-i18n-title="zoom.out">－</button>
-      <button type="button" class="round-btn" id="btn-zoom-reset" title="標準" data-i18n-title="zoom.reset">◎</button>
+    <!-- The official column is three controls: the ⌃⌄ chevron that expands
+         the conversation, then the quest flag and the bag side by side. Our
+         additions (zoom, posture, replay, favourite) live in .quick-extra and
+         are folded away by default behind the small ⋯ key (app.quickCollapsed). -->
+    <div class="quick-extra">
+      <div class="zoom-row">
+        <button type="button" class="round-btn" id="btn-zoom-in" title="Zoom in" data-i18n-title="zoom.in">＋</button>
+        <button type="button" class="round-btn" id="btn-zoom-out" title="Zoom out" data-i18n-title="zoom.out">－</button>
+        <button type="button" class="round-btn" id="btn-zoom-reset" title="Reset" data-i18n-title="zoom.reset">◎</button>
+      </div>
+      <button type="button" class="round-btn hidden" id="btn-posture" title="Sit / Stand" data-i18n-title="hud.posture">座</button>
+      <button type="button" class="round-btn" id="btn-replay" title="Replay" data-i18n-title="voice.replay">▶</button>
+      <button type="button" class="round-btn" id="btn-voicefav" title="Favourite" data-i18n-title="voice.fav">★</button>
     </div>
-    <button type="button" class="round-btn hidden" id="btn-posture" title="座る/立つ" data-i18n-title="hud.posture">座</button>
-    <button type="button" class="round-btn" id="btn-replay" title="もう一度聞く" data-i18n-title="voice.replay">▶</button>
-    <button type="button" class="round-btn" id="btn-voicefav" title="お気に入り" data-i18n-title="voice.fav">★</button>
-    <button type="button" class="round-btn" id="btn-log-toggle" title="会話履歴" data-i18n-title="talk.history"><img src="assets/icons/arrow_up.svg" alt=""></button>
-    <button type="button" class="round-btn" id="btn-quest-sheet" title="クエスト" data-i18n-title="quest.title"><img src="assets/icons/quest.svg" alt=""></button>
-    <button type="button" class="round-btn" id="btn-bag" title="道具" data-i18n-title="inv.title"><img src="assets/icons/bag.svg" alt=""></button>
+    <button type="button" class="round-btn quick-toggle" id="btn-quick-toggle" title="More buttons" data-i18n-title="talk.more">⋯</button>
+    <button type="button" class="round-btn chev" id="btn-log-toggle" title="Expand the conversation" data-i18n-title="talk.expand"><img src="assets/icons/chevrons.svg" alt=""></button>
+    <div class="core-row">
+      <button type="button" class="round-btn" id="btn-quest-sheet" title="Quests" data-i18n-title="quest.title"><img src="assets/icons/quest.svg" alt=""></button>
+      <button type="button" class="round-btn" id="btn-bag" title="Bag" data-i18n-title="inv.title"><img src="assets/icons/bag.svg" alt=""></button>
+    </div>
   </div>
   <div id="log-panel">
+    <!-- ≡ at the head of the text (official talk_conversation_log glyph):
+         opens the mode / scene sheet. -->
+    <button type="button" id="btn-log-menu" title="Talk mode" data-i18n-title="mode.sheet"><img src="assets/icons/log_lines.svg" alt=""></button>
     <div id="log-head">
       <img id="log-avatar" src="assets/images/chara_icons/ryza.png" alt="">
       <div id="log-ident">
@@ -104,22 +111,24 @@
       </div>
       <button type="button" class="mini-btn hidden" id="btn-tut-skip" data-i18n="tut.skip">Skip</button>
     </div>
+    <!-- The conversation is a message stream (user right, Ryza plain, narration
+         in italics, islanders with a name label); the newest Ryza/narration row
+         carries id="bubble" so the tutorial and the boot smoke can find it. -->
     <div id="log-body">
-      <div id="bubble"><span id="bubble-text"></span></div>
+      <div id="log-list"></div>
     </div>
-    <div id="log-dots"></div>
     <div id="retry-bar" class="hidden">
       <span data-i18n="talk.retryHint">连接失败了</span>
       <button class="mini-btn" id="btn-retry" data-i18n="talk.retry">重试</button>
     </div>
     <div id="input-bar">
-      <button type="button" class="round-btn speed-btn" id="btn-speed" title="テキスト速度" data-i18n-title="speed.title">×1</button>
+      <button type="button" class="round-btn speed-btn" id="btn-speed" title="Text speed" data-i18n-title="speed.title"><img src="assets/icons/text_speed_1x.svg" alt="×1"></button>
       <div class="input-pill">
-        <input id="input" type="text" placeholder="和莱莎说点什么…" autocomplete="off" data-i18n-placeholder="input.hint">
-        <button type="button" id="btn-mic" class="mic-btn hidden" data-i18n-title="mic.start" title="语音输入"></button>
-        <button type="button" id="btn-newtalk" title="新しい会話" data-i18n-title="nav.newTalk"><img src="assets/icons/asterisk.svg" alt=""></button>
+        <input id="input" type="text" placeholder="Ask me anything!" autocomplete="off" data-i18n-placeholder="input.hint">
+        <button type="button" id="btn-mic" class="mic-btn hidden" data-i18n-title="mic.start" title="Voice input"></button>
+        <button type="button" id="btn-newtalk" title="New talk" data-i18n-title="nav.newTalk"><img src="assets/icons/asterisk.svg" alt=""></button>
+        <button type="button" id="btn-send" class="round-btn send-btn" title="Send" data-i18n-title="talk.send"><img src="assets/icons/play.svg" alt="send"></button>
       </div>
-      <button type="button" id="btn-send" class="round-btn send-btn" title="送信" data-i18n-title="talk.send"><img src="assets/icons/send.svg" alt="send"></button>
     </div>
   </div>
 </main>
@@ -405,6 +414,6 @@
 <script src="js/back.js?v=back-1"></script>
 <script src="js/kbd.js?v=1"></script>
 <script src="js/settings.js?v=1"></script>
-<script src="js/app.js?v=undress-2"></script>
+<script src="js/app.js?v=stream-1"></script>
 </body>
 </html>

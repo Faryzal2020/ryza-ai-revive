@@ -326,6 +326,9 @@
       'chara.ryzaTitle': '莱莎（角色设定）', 'chara.playerTitle': '你（玩家设定）',
       'win.pin': '窗口置顶', 'win.min': '最小化', 'win.close': '关闭',
       'nav.foot': '离线重建版 · 不连接官方服务器', 'title.heading': '和莱莎对话',
+      'nav.menu': '菜单', 'voice.toggle': '语音 / 文字', 'title.doc': '和莱莎对话 — Ryza Chat',
+      'talk.expand': '展开对话', 'talk.shrink': '收起对话', 'talk.more': '更多按钮', 'talk.less': '收起按钮',
+      'talk.narration': '旁白', 'chara.player': '你',
     },
 
     ja: {
@@ -647,6 +650,9 @@
       'chara.ryzaTitle': 'ライザ（キャラ設定）', 'chara.playerTitle': 'あなた（プレイヤー設定）',
       'win.pin': '常に最前面に表示', 'win.min': '最小化', 'win.close': '閉じる',
       'nav.foot': 'オフライン再構築版 · 公式サーバー非接続', 'title.heading': 'ライザと話す',
+      'nav.menu': 'メニュー', 'voice.toggle': '音声 / テキスト', 'title.doc': 'ライザと話す — Ryza Chat',
+      'talk.expand': '会話を広げる', 'talk.shrink': '会話を戻す', 'talk.more': 'その他のボタン', 'talk.less': 'ボタンを隠す',
+      'talk.narration': 'ナレーション', 'chara.player': 'あなた',
     },
 
     en: {
@@ -968,6 +974,9 @@
       'chara.ryzaTitle': 'Ryza (Character settings)', 'chara.playerTitle': 'You (Player settings)',
       'win.pin': 'Always on top', 'win.min': 'Minimize', 'win.close': 'Close',
       'nav.foot': 'Offline rebuild · No official server connection', 'title.heading': 'Talk with Ryza',
+      'nav.menu': 'Menu', 'voice.toggle': 'Voice / Text', 'title.doc': 'Talk with Ryza — Ryza Chat',
+      'talk.expand': 'Expand the conversation', 'talk.shrink': 'Shrink the conversation', 'talk.more': 'More buttons', 'talk.less': 'Hide the extra buttons',
+      'talk.narration': 'Narration', 'chara.player': 'You',
     }
   };
 
@@ -1512,6 +1521,7 @@
       'tut.7': 'まずはあたしとお喋りでもしてリフレッシュしよっ',
       'greet.1': '……やあ、会えたね。', 'greet.n': '……今日も、会えたね。',
       'mem.met': '{names} と出会った。', 'mem.sleep': '安全なおうちでぐっすり眠った。',
+      'mem.sail': '船でクーケン島を出航した！', 'mem.streak': '連続ログイン {n} 日目：{items}',
       'mem.cleared': '「{title}」をクリア！ +{exp}EXP / +{money}G', 'mem.lv': 'Lv{lv} reached!',
       'place.area_01': 'クーケン島周辺地域', 'place.area_02': 'クレリア地方', 'place.area_03': 'ネメッド地方',
       'place.area_04': '冥界オーリム', 'place.area_05': '王都周辺地域',
@@ -1585,6 +1595,7 @@
       'tut.7': '先陪我聊聊天放松一下嘛',
       'greet.1': '……呀，见到你啦。', 'greet.n': '……今天也，见到你啦。',
       'mem.met': '遇见了{names}。', 'mem.sleep': '在安全的家里睡了个好觉。',
+      'mem.sail': '乘船离开了库肯岛！', 'mem.streak': '连续登录第 {n} 天：{items}',
       'mem.cleared': '通关「{title}」！+{exp}经验 / +{money}G', 'mem.lv': '升到 Lv{lv} 了！',
       'place.area_01': '库肯岛周边地区', 'place.area_02': '克莱莉亚地区', 'place.area_05': '王都周边地区',
       'place.field_01_001': '库肯岛', 'place.stage_01_001_04': '莱莎家', 'place.stage_01_002_01': '塔奥家门前',
@@ -1658,6 +1669,7 @@
       'tut.7': 'Let\u2019s chat a bit and refresh first',
       'greet.1': '…Hey, there you are.', 'greet.n': '…There you are again today.',
       'mem.met': 'Met {names}.', 'mem.sleep': 'Slept soundly at the safe home.',
+      'mem.sail': 'Set sail from Kurken Island!', 'mem.streak': 'Login streak day {n}: {items}',
       'mem.cleared': 'Cleared "{title}"! +{exp}EXP / +{money}G', 'mem.lv': 'Reached Lv{lv}!',
       'place.area_01': 'Kurken Island Area', 'place.area_02': 'Cleria region',
       'place.field_01_001': 'Kurken Island', 'place.stage_01_001_04': 'Ryza\u2019s Home',
@@ -1688,7 +1700,8 @@
       samuel: 'Samuel', kilo: 'Kilo', romy: 'Romy', patricia: 'Patricia',
       clifford: 'Clifford', serri: 'Serri', volker: 'Volker', zephine: 'Zephine',
       dennis: 'Dennis', cassandra: 'Cassandra', kala: 'Kala', alberta: 'Alberta',
-      saverio: 'Saverio', anna: 'Anna', dort: 'Dort', federica: 'Federica', dian: 'Dian' }
+      saverio: 'Saverio', anna: 'Anna', dort: 'Dort', federica: 'Federica', dian: 'Dian',
+      korou: 'Korou' }
   };
   /* zh (simplified UI) mirrors the zh-TW official forms, char-converted */
   var NPC_ZH_TW = NPC_NAMES.zh;
@@ -2097,7 +2110,7 @@
 
   /* Official EN strings recovered from the same scan. */
   var EN_VERBATIM = {
-    'input.hint': 'Tap to talk with Ryza', 'input.wake': 'Tap to wake Ryza',
+    'input.hint': 'Ask me anything!', 'input.wake': 'Tap to wake Ryza',
     'place.stage_01_001_04': 'Ryza’s Home', 'place.stage_01_002_01': 'In front of Tao’s house',
     'place.area_01': 'Kurken Island Area', 'place.area_02': 'Cleria region',
     'place.field_01_001': 'Kurken Island'
@@ -2139,7 +2152,7 @@
     hi: 'hi', id: 'id', 'pt-br': 'pt'
   };
   var Langs = {
-    ui: function () { return (Config.section('app') || {}).lang || 'zh'; },
+    ui: function () { return (Config.section('app') || {}).lang || 'en'; },
     voice: function () {
       var v = (Config.section('voice') || {}).lang || 'auto';
       return v === 'auto' ? Langs.ui() : v;

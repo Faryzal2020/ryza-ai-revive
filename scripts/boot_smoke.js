@@ -211,10 +211,12 @@ for (const f of ['util.js', 'config.js', 'i18n.js', 'api.js', 'providers.js', 't
     ok(sandbox.Daily.available(), 'daily claim available on fresh boot');
 
     /* the right-hand quick column: bound at boot, state applied from Config */
+    /* Default is the official three-button column: the extras (zoom / posture /
+       replay / favourite) start folded behind the ⋯ key. */
     const qt = document.getElementById('btn-quick-toggle');
-    ok(!!qt && qt.textContent === '\u2715' &&
-       !document.body.classList.contains('quick-collapsed'),
-       'quick buttons start expanded and the collapse key says so');
+    ok(!!qt && qt.textContent === '\u22ef' &&
+       document.body.classList.contains('quick-collapsed'),
+       'extra quick buttons start folded and the key says so');
     sandbox.App.setQuickCollapsed(true);
     ok(document.body.classList.contains('quick-collapsed') && qt.textContent === '\u22ef' &&
        sandbox.Config.section('app').quickCollapsed === true,
@@ -331,16 +333,34 @@ for (const f of ['util.js', 'config.js', 'i18n.js', 'api.js', 'providers.js', 't
        'asmr still gets place catalog (marionette scene.*)');
     sandbox.Config.set('state.mode', 'chat');
 
-    /* log-panel lifecycle (2026-09-07 UI pass): the panel is persistent —
-       showBubble pushes a page + renders dots, nothing self-hides anymore,
+    /* message stream: showBubble appends a row (default role = Ryza), a role
+       argument tags narration / npc rows, the user's line is appended by say(),
        and a second typeBubble chain supersedes the first via the gen token */
+    sandbox.App._clearMsgs();
     sandbox.App.showBubble('テスト');
-    ok(sandbox.App._pages[sandbox.App._pages.length - 1] === 'テスト',
-       'showBubble pushes the line into the log pages');
+    let last = sandbox.App._msgs[sandbox.App._msgs.length - 1];
+    ok(last && last.text === 'テスト' && last.role === 'ryza',
+       'showBubble appends the line as a Ryza row');
+    sandbox.App.showBubble('（風が吹いた）', 'narration');
+    last = sandbox.App._msgs[sandbox.App._msgs.length - 1];
+    ok(last && last.role === 'narration', 'a narration role lands as a narration row');
+    sandbox.App._appendMsg('user', 'hi');
+    ok(sandbox.App._msgs.filter((m) => m.role === 'user').length === 1, 'the user line is a user row');
     ok(!sandbox.App._bubbleTimer, 'the panel no longer arms an auto-hide timer');
-    sandbox.App.showBubble('テスト');
-    ok(sandbox.App._pages.filter((x) => x === 'テスト').length === 1,
-       'back-to-back identical lines do not stack duplicate dots');
+
+    /* transcript persistence: what say() pushes is on disk and comes back
+       through loadHistory on the next boot (the panel used to reset) */
+    sandbox.App.history = [{ role: 'user', content: 'boat?' }, { role: 'assistant', content: '[emotion:happy]\nYes!' }];
+    sandbox.App.saveHistory();
+    ok(!!localStorage.getItem('ryza.history.v1'), 'saveHistory writes the transcript');
+    sandbox.App.history = [];
+    sandbox.App.loadHistory();
+    ok(sandbox.App.history.length === 2 && sandbox.App.history[0].content === 'boat?',
+       'loadHistory restores it on the next boot');
+    sandbox.App._renderHistory();
+    ok(sandbox.App._msgs.length === 2 && sandbox.App._msgs[0].role === 'user' && sandbox.App._msgs[1].role === 'ryza',
+       'the stream is rebuilt from the transcript (tag line stripped)');
+    sandbox.App.history = [];
     sandbox.App.typeBubble('一二三', null);
     const genAfterStart = sandbox.App._typeGen;
     sandbox.App.typeBubble('abc', null);
