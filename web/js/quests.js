@@ -756,8 +756,8 @@
         head.innerHTML = '<span class="wm-group-title"></span><span class="wm-group-day"></span>';
         head.querySelector('.wm-group-title').textContent = g.title;
         head.querySelector('.wm-group-day').textContent = open
-          ? (done ? '完成' : '进行中')
-          : ('第 ' + g.day + ' 天开放');
+          ? (done ? (global.I18n && I18n.t ? I18n.t('quest.done') : '完成') : (global.I18n && I18n.t ? I18n.t('quest.ongoing') : '进行中'))
+          : (global.I18n && I18n.tf ? I18n.tf('quest.openDay', '第 {day} 天开放', { day: g.day }) : ('第 ' + g.day + ' 天开放'));
         box.appendChild(head);
 
         var grid = document.createElement('div');
@@ -784,7 +784,7 @@
         if (open && done && !Welcome.groupClaimed(g)) {
           var btn = document.createElement('button');
           btn.className = 'wm-claim';
-          btn.textContent = '受け取る';
+          btn.textContent = (global.I18n && I18n.t ? I18n.t('quest.claim') : '受け取る');
           btn.onclick = function () {
             var r = Welcome.claimGroup(g);
             if (r) { Welcome.render(root); if (_present) { try { _present(r); } catch (e) {} } }
@@ -793,7 +793,7 @@
         } else if (Welcome.groupClaimed(g)) {
           var tag = document.createElement('div');
           tag.className = 'wm-claimed';
-          tag.textContent = '受け取り済み';
+          tag.textContent = (global.I18n && I18n.t ? I18n.t('quest.claimed') : '受け取り済み');
           box.appendChild(tag);
         }
         list.appendChild(box);

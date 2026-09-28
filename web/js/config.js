@@ -247,6 +247,18 @@
     { v: 8,  icon: 'text_speed_3x' }
   ];
 
+  var saveTimer = null;
+  function syncToDisk() {
+    if (typeof fetch !== 'function') return;
+    try {
+      fetch('/api/storage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   var Config = {
     TEXT_SPEEDS: TEXT_SPEEDS,
     /* The active text speed, resolved against the table above. Callers used to
@@ -274,6 +286,10 @@
     },
     save: function () {
       try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+      if (typeof setTimeout === 'function') {
+        if (typeof clearTimeout === 'function' && saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(syncToDisk, 200);
+      }
     },
     reset: function () {
       data = deepMerge(DEFAULTS, {});
@@ -300,15 +316,32 @@
       data = deepMerge(DEFAULTS, {});          /* drop the in-memory copy too —
         otherwise a stale Config.set() after a wipe resurrects the old save */
       Config._hydrated = Promise.resolve();   // never re-hydrate after a wipe
+      syncToDisk();
     },
 
-    /* Fill connection settings from config/providers.json.
-       Empty keys get filled; a saved endpoint that isn't the providers host
-       (stale localStorage) is replaced so chat actually reaches the model. */
+    /* Fill connection settings from /api/storage (data-config/settings.json)
+       and config/providers.json. Empty keys get filled. */
     hydrate: function () {
       if (Config._hydrated) return Config._hydrated;
-      Config._hydrated = fetch('config/providers.json').then(function (r) {
-        return r.ok ? r.json() : null;
+      Config._hydrated = Promise.resolve().then(function () {
+        if (typeof fetch !== 'function') return null;
+        return fetch('/api/storage').then(function (r) {
+          return r.ok ? r.json() : null;
+        }).catch(function () { return null; });
+      }).then(function (saved) {
+        if (saved && typeof saved === 'object' && Object.keys(saved).length > 0) {
+          var oldApiKey = (data.llm && data.llm.apiKey) ? data.llm.apiKey : '';
+          data = deepMerge(data, saved);
+          if (oldApiKey && !data.llm.apiKey) {
+            data.llm.apiKey = oldApiKey;
+            syncToDisk();
+          }
+          try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+        }
+        if (typeof fetch !== 'function') return null;
+        return fetch('config/providers.json').then(function (r) {
+          return r.ok ? r.json() : null;
+        }).catch(function () { return null; });
       }).then(function (p) {
         if (!p) return;
         function hostOf(u) {

@@ -244,9 +244,12 @@
       Object.keys(loc).forEach(function (id) {
         if (loc[id] !== stageId) return;
         var n = byId[id];
-        if (n) out.push({ id: n.id, name: World.npcName(n.id), note: n.note || '' });
+        if (n) out.push({ id: n.id, name: World.npcName(n.id), note: World.npcNote(n.id, n.note || '') });
       });
-      return out.sort(function (a, b) { return a.name.localeCompare(b.name, 'ja'); });
+      return out.sort(function (a, b) {
+        var lang = (window.I18n && I18n.lang) || 'ja';
+        return a.name.localeCompare(b.name, lang);
+      });
     },
 
     npcsInField: function (fieldId, day) {
@@ -260,7 +263,13 @@
         if (seen[id]) return;
         seen[id] = true;
         var n = byId[id];
-        if (n) out.push({ id: n.id, name: World.npcName(n.id), note: n.note || '', stageId: loc[id], stage: info.stage });
+        if (n) out.push({
+          id: n.id,
+          name: World.npcName(n.id),
+          note: World.npcNote(n.id, n.note || ''),
+          stageId: loc[id],
+          stage: World.placeLabel(loc[id], info.stage)
+        });
       });
       return out;
     },
@@ -271,11 +280,16 @@
       World.fields(areaId).forEach(function (f) {
         World.npcsInField(f.id, day).forEach(function (n) {
           if (!out[n.id]) out[n.id] = { id: n.id, name: n.name, note: n.note || '', where: [] };
-          out[n.id].where.push(f.name + '（' + n.stage + '）');
+          var fLabel = World.placeLabel(f.id, f.name);
+          var sLabel = World.placeLabel(n.stageId, n.stage);
+          out[n.id].where.push(fLabel + (sLabel && sLabel !== fLabel ? ' (' + sLabel + ')' : ''));
         });
       });
       return Object.keys(out).map(function (k) { return out[k]; })
-        .sort(function (a, b) { return a.name.localeCompare(b.name, 'ja'); });
+        .sort(function (a, b) {
+          var lang = (window.I18n && I18n.lang) || 'ja';
+          return a.name.localeCompare(b.name, lang);
+        });
     },
 
     iconFor: function (npcId) {
@@ -291,6 +305,10 @@
       var base = hit ? hit.name : npcId;
       if (!window.I18n || !I18n.tc) return base;
       return I18n.tc('npc.' + String(npcId).replace(/^npc_/, ''), base);
+    },
+    npcNote: function (npcId, base) {
+      if (!window.I18n || !I18n.tc) return base;
+      return I18n.tc('npc_note.' + String(npcId).replace(/^npc_/, ''), base);
     },
     placeLabel: function (id, base) {
       return (window.I18n && I18n.tc) ? I18n.tc('place.' + id, base) : base;

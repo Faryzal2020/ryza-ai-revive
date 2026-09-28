@@ -84,8 +84,15 @@
     /* Applies data-i18n attributes in a subtree. Lives here (not in i18n.js)
        because walking the DOM is presentation; i18n.js stays a pure table. */
     applyI18n: function (root) {
-      (root || document).querySelectorAll('[data-i18n]').forEach(function (el) {
+      var r = root || document;
+      r.querySelectorAll('[data-i18n]').forEach(function (el) {
         el.textContent = I18n.t(el.getAttribute('data-i18n'));
+      });
+      r.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+        el.placeholder = I18n.t(el.getAttribute('data-i18n-placeholder'));
+      });
+      r.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+        el.title = I18n.t(el.getAttribute('data-i18n-title'));
       });
     },
 
@@ -202,7 +209,7 @@
            throw, and "asset index failed" was the only clue even when the real
            cause was a wiring call. boot_smoke asserts this is null. */
         App._bootError = e;
-        App.toast('素材索引加载失败：' + e.message, true);
+        App.toast((window.I18n && I18n.t ? I18n.t('toast.assetIndexFail') : '素材索引加载失败：') + e.message, true);
       });
     },
 
@@ -450,6 +457,12 @@
     enterGame: function (fromOnboard) {
       var bar = document.getElementById('input-bar');
       if (bar) bar.classList.remove('spot');
+      var skipBtn = document.getElementById('btn-tut-skip');
+      if (skipBtn) skipBtn.classList.add('hidden');
+      var ls = document.getElementById('log-sub');
+      if (ls) ls.classList.remove('tut');
+      App._inTutorial = false;
+      App.updateHud();
       var st = Config.section('state');
       Sound.setPlace(st.stage, st.tod, World.backgroundFor(st.stage));
       Sound.setRoute('talk');
@@ -691,15 +704,16 @@
       /* tapping her name/subtitle opens the mode sheet (mode lives there now) */
       var logHead = document.getElementById('log-head');
       if (logHead) logHead.onclick = function () {
-        document.getElementById('sheet-mode').classList.toggle('hidden');
+        var isHidden = document.getElementById('sheet-mode').classList.contains('hidden');
+        if (isHidden) App.openSheet('sheet-mode'); else App.closeSheets();
       };
       ['hud-stamina', 'hud-money', 'hud-level'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.onclick = function () { App.renderStatus(); document.getElementById('sheet-status').classList.remove('hidden'); };
+        if (el) el.onclick = function () { App.renderStatus(); App.openSheet('sheet-status'); };
       });
       document.getElementById('btn-bag').onclick = function () {
-        App.renderInv();
-        document.getElementById('sheet-inv').classList.toggle('hidden');
+        var isHidden = document.getElementById('sheet-inv').classList.contains('hidden');
+        if (isHidden) { App.renderInv(); App.openSheet('sheet-inv'); } else { App.closeSheets(); }
       };
       document.querySelectorAll('#inv-tabs [data-bag]').forEach(function (b) {
         b.onclick = function () {
@@ -779,7 +793,7 @@
           var f = crfFile.files && crfFile.files[0];
           crfFile.value = '';
           if (!f) return;
-          App.toast('导入中…');
+          App.toast(I18n.t('toast.importing'));
           CrfStore.importZip(f).then(function (v) {
             return CrfStore.get(v.id).then(function (rec) {
               var base = Avatar.skinsIndex || [];
@@ -787,10 +801,10 @@
               Avatar.skinsIndex = base;
               Config.set('state.skin', v.id);
               App.renderSkins();
-              App.toast('已导入：' + v.id);
+              App.toast(I18n.t('toast.imported') + v.id);
             });
           }).catch(function (e) {
-            App.toast('导入失败：' + e.message, true);
+            App.toast(I18n.t('toast.importFail') + e.message, true);
           });
         };
       }
@@ -798,15 +812,15 @@
       if (crfRm) {
         crfRm.onclick = function () {
           var list = CrfStore.list();
-          if (!list.length) { App.toast('没有导入的服装'); return; }
+          if (!list.length) { App.toast(I18n.t('skin.noImported')); return; }
           var last = list[list.length - 1];
           CrfStore.remove(last.id).then(function () {
             Avatar.skinsIndex = (Avatar.skinsIndex || []).filter(function (x) {
               return x.id !== last.id;
             });
             App.renderSkins();
-            App.toast('已移除：' + last.id);
-          }).catch(function (e) { App.toast('移除失败：' + e.message, true); });
+            App.toast(I18n.t('toast.removed') + last.id);
+          }).catch(function (e) { App.toast(I18n.t('toast.removeFail') + e.message, true); });
         };
       }
       var peopleBtn = document.getElementById('btn-world-people');
@@ -826,7 +840,7 @@
         });
       };
       document.getElementById('btn-settings-reset').onclick = function () {
-        if (confirm('恢复所有设置为默认值？')) {
+        if (confirm(I18n.t('settings.resetAsk'))) {
           Config.reset(); App.buildSettings(); App.buildCharaForm();
           App.toast(I18n.t('toast.saved'));
         }
@@ -839,17 +853,48 @@
       return !!(v && v.classList.contains('active'));
     },
 
+    closeSheets: function () {
+      ['sheet-mode', 'sheet-inv', 'sheet-status', 'sheet-npc', 'sheet-lang'].forEach(function (id) {
+        var s = document.getElementById(id);
+        if (s) s.classList.add('hidden');
+      });
+      var scrim = document.getElementById('sheet-scrim');
+      if (scrim) scrim.classList.add('hidden');
+    },
+
+    openSheet: function (id) {
+      App.closeSheets();
+      var s = document.getElementById(id);
+      if (s) {
+        s.classList.remove('hidden');
+        var scrim = document.getElementById('sheet-scrim');
+        if (scrim) scrim.classList.remove('hidden');
+      }
+    },
+
+    toggleNsfw: function (targetVal) {
+      if (!window.Nsfw) return;
+      var next = typeof targetVal === 'boolean' ? targetVal : !Nsfw.enabled();
+      Nsfw.setEnabled(next);
+      if (next && window.Avatar && Avatar.postureKey && Avatar.postureKey() === 'posture_sitting') {
+        App.setPosture('posture_standing');
+      }
+      if (window.Sound) Sound.se('skin_change');
+      App.toast(next ? (I18n.t('nsfw.on') || 'NSFW mode enabled') : (I18n.t('nsfw.off') || 'Normal outfit restored'));
+      App.syncNsfwSwitches();
+    },
+
+    syncNsfwSwitches: function () {
+      var active = window.Nsfw ? Nsfw.enabled() : false;
+      var skinToggle = document.getElementById('skin-nsfw-toggle');
+      if (skinToggle) skinToggle.classList.toggle('on', active);
+    },
+
     showView: function (name) {
       document.querySelectorAll('.view').forEach(function (v) {
         v.classList.toggle('active', v.id === 'view-' + name);
       });
-      document.getElementById('sheet-mode').classList.add('hidden');
-      document.getElementById('sheet-inv').classList.add('hidden');
-      document.getElementById('sheet-status').classList.add('hidden');
-      var npcSheet = document.getElementById('sheet-npc');
-      if (npcSheet) npcSheet.classList.add('hidden');
-      var langSheet = document.getElementById('sheet-lang');
-      if (langSheet) langSheet.classList.add('hidden');
+      App.closeSheets();
       if (name === 'world') {
         Welcome.milestone('map');   /* local milestone: the official board has no map mission */
         Sound.setRoute('world');
@@ -858,7 +903,11 @@
         Sound.setRoute('talk');
       }
       if (name === 'memory') App.renderMemory();
-      if (name === 'skin') { Welcome.milestone('skin'); App.renderSkins(); }
+      if (name === 'skin') {
+        Welcome.milestone('skin');
+        App.renderSkins();
+        App.syncNsfwSwitches();
+      }
       if (name === 'welcome') Welcome.render(document.getElementById('welcome-body'));
       if (name === 'alarm') Welcome.milestone('alarm');
       if (name === 'quest') Quests.render(document.getElementById('quest-list'), {});
@@ -1123,7 +1172,7 @@
       var btn = document.getElementById('btn-world-mode');
       if (btn) {
         var label = btn.querySelector('span');
-        if (label) label.textContent = (m === 'map') ? '列表' : '地图';
+        if (label) label.textContent = (m === 'map') ? I18n.t('world.list') : I18n.t('world.map');
       }
       App.renderWorld();
     },
@@ -1294,6 +1343,15 @@
     _bindOverlays: function () {
       document.getElementById('onb-next').onclick = function () { Onboarding.next(); };
       document.getElementById('onb-skip').onclick = function () { Onboarding.skip(); };
+      var tutSkip = document.getElementById('btn-tut-skip');
+      if (tutSkip) tutSkip.onclick = function (e) {
+        e.stopPropagation();
+        if (window.Onboarding) Onboarding.skipTutorial();
+      };
+      var bubble = document.getElementById('bubble');
+      if (bubble) bubble.addEventListener('click', function () {
+        if (App._inTutorial && window.Onboarding) Onboarding.tutorialAdvance();
+      });
       document.getElementById('overlay-prologue').onclick = function () { Onboarding.prologueNext(); };
       document.getElementById('ring-dismiss').onclick = function () { App._dismissAlarm(); };
       document.getElementById('ring-snooze').onclick = function () { App._snoozeAlarm(); };
@@ -1324,9 +1382,41 @@
       };
       document.querySelectorAll('.sheet-handle').forEach(function (h) {
         h.onclick = function () {
-          var sheet = h.parentElement;
-          if (sheet) sheet.classList.add('hidden');
+          App.closeSheets();
         };
+      });
+      document.querySelectorAll('.sheet-close-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          App.closeSheets();
+        };
+      });
+      var sheetScrim = document.getElementById('sheet-scrim');
+      if (sheetScrim) {
+        sheetScrim.onclick = function () {
+          App.closeSheets();
+        };
+      }
+      document.querySelectorAll('.view-back-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          App.showView('talk');
+        };
+      });
+      var skinNsfwToggle = document.getElementById('skin-nsfw-toggle');
+      if (skinNsfwToggle) {
+        skinNsfwToggle.onclick = function () {
+          App.toggleNsfw();
+        };
+      }
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          var hasOpenSheet = ['sheet-mode', 'sheet-inv', 'sheet-status', 'sheet-npc', 'sheet-lang'].some(function (id) {
+            var s = document.getElementById(id);
+            return s && !s.classList.contains('hidden');
+          });
+          if (hasOpenSheet) {
+            App.closeSheets();
+          }
+        }
       });
     },
 
@@ -1851,9 +1941,9 @@
 
     /* 重播上一段语音（从缓存取，不重新合成）。 */
     replayLastVoice: function () {
-      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast('没有可重播的语音'); return; }
+      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast(I18n.t('toast.noReplay')); return; }
       VoiceCache.urlFor(App._lastVoiceKey).then(function (url) {
-        if (!url) { App.toast('这段语音已不在缓存里'); return; }
+        if (!url) { App.toast(I18n.t('toast.voiceExpired')); return; }
         var a = App.audio;
         if (!a) return;
         try {
@@ -1862,15 +1952,15 @@
           a.play().catch(function () {});
           Avatar.setTalking(true);
           a.onended = function () { Avatar.setTalking(false); try { URL.revokeObjectURL(url); } catch (e) {} };
-        } catch (e) { App.toast('重播失败'); }
-      }).catch(function () { App.toast('重播失败'); });
+        } catch (e) { App.toast(I18n.t('toast.replayFail')); }
+      }).catch(function () { App.toast(I18n.t('toast.replayFail')); });
     },
 
     /* 收藏 / 取消收藏上一段语音（收藏的片段不会被字节预算逐出） */
     favLastVoice: function () {
-      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast('没有可收藏的语音'); return; }
+      if (!window.VoiceCache || !App._lastVoiceKey) { App.toast(I18n.t('toast.noFav')); return; }
       var on = VoiceCache.toggleFav(App._lastVoiceKey);
-      App.toast(on ? '已收藏这段语音' : '已取消收藏');
+      App.toast(on ? I18n.t('toast.favOn') : I18n.t('toast.favOff'));
     },
 
     /* Shared end-of-audio bookkeeping. The rate reset is not cosmetic: ASMR
@@ -2268,7 +2358,7 @@
         },
         onOk: function (body) {
           var time = (body.querySelector('#f-alarm-time').value || '').slice(0, 5);
-          if (!/^\d{2}:\d{2}$/.test(time)) { App.toast('请填写时间', true); return false; }
+          if (!/^\d{2}:\d{2}$/.test(time)) { App.toast(I18n.t('alarm.fillTime'), true); return false; }
           var type = body.querySelector('#f-alarm-type').value;
           var style = body.querySelector('#f-alarm-style').value;
           var days = [];
@@ -2351,7 +2441,7 @@
           el.innerHTML = '<div class="card-title"><span class="tag' +
             (m.who === 'ryza' ? '' : ' leaf') + ' t-who"></span></div>' +
             '<div class="card-sub t-text"></div>';
-          el.querySelector('.t-who').textContent = m.who === 'ryza' ? 'ライザ' : '你';
+          el.querySelector('.t-who').textContent = m.who === 'ryza' ? 'ライザ' : I18n.tc('chara.you', '你');
           el.querySelector('.t-text').textContent = m.text;
           root.appendChild(el);
         });

@@ -20,9 +20,9 @@
       ctl.appendChild(b);
       return b;
     };
-    var pin = mk('win-pin', '📌', '窗口置顶');
-    var min = mk('win-min', '—', '最小化');
-    var cls = mk('win-close', '✕', '关闭');
+    var pin = mk('win-pin', '📌', (global.I18n && I18n.t ? I18n.t('win.pin') : 'Pin on top'));
+    var min = mk('win-min', '—', (global.I18n && I18n.t ? I18n.t('win.min') : 'Minimize'));
+    var cls = mk('win-close', '✕', (global.I18n && I18n.t ? I18n.t('win.close') : 'Close'));
     var settingsBtn = document.getElementById('btn-settings');
     if (settingsBtn && settingsBtn.parentNode === bar) {
       bar.insertBefore(ctl, settingsBtn.nextSibling);

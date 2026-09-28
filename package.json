@@ -1,0 +1,11 @@
+{
+  "name": "ryza-ai-revive",
+  "version": "1.2.22",
+  "private": true,
+  "description": "Ryza AI Revive Web & Companion App",
+  "scripts": {
+    "start": "python3 scripts/serve.py",
+    "dev": "python3 scripts/serve.py",
+    "test": "node scripts/boot_smoke.js && node scripts/layering_check.js --strict"
+  }
+}

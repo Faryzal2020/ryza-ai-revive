@@ -263,7 +263,18 @@
     _tutIdx: 0,
 
     _tutorial: function () {
-      document.getElementById('overlay-prologue').classList.add('hidden');
+      var op = document.getElementById('overlay-prologue');
+      if (op) op.classList.add('hidden');
+      var oo = document.getElementById('overlay-onboard');
+      if (oo) oo.classList.add('hidden');
+      var ot = document.getElementById('overlay-title');
+      if (ot) ot.classList.add('hidden');
+      document.body.classList.remove('boot');
+      if (window.App) {
+        App.showView('talk');
+        var phone = document.getElementById('phone');
+        if (phone) phone.classList.remove('panel-collapsed');
+      }
       if (window.Sound) {
         var st = Config.section('state');
         Sound.setPlace(st.stage, st.tod, World.backgroundFor(st.stage));
@@ -279,14 +290,36 @@
       var line = TUTORIAL[Onboarding._tutIdx];
       if (!line) {
         Config.set('state.onboardingDone', true);
+        var bar = document.getElementById('input-bar');
+        if (bar) bar.classList.remove('spot');
+        var skipBtn = document.getElementById('btn-tut-skip');
+        if (skipBtn) skipBtn.classList.add('hidden');
+        var ls = document.getElementById('log-sub');
+        if (ls) ls.classList.remove('tut');
+        if (window.App) {
+          App._inTutorial = false;
+          App.updateHud();
+        }
         Onboarding._onDone && Onboarding._onDone();
         return;
       }
       var text = (window.I18n && I18n.tc)
         ? I18n.tc('tut.' + (Onboarding._tutIdx + 1), line.ja) : line.ja;
-      if (window.App && App.showBubble) App.showBubble(text);
+      if (window.App) {
+        App._inTutorial = true;
+        var skipBtn = document.getElementById('btn-tut-skip');
+        if (skipBtn) skipBtn.classList.remove('hidden');
+        var ls = document.getElementById('log-sub');
+        if (ls) {
+          ls.classList.add('tut');
+          var badge = (window.I18n && I18n.t('tut.badge')) || '🎓 Tutorial';
+          var hint = (window.I18n && I18n.t('tut.tapHint')) || 'Tap screen to continue';
+          ls.textContent = badge + ' (' + (Onboarding._tutIdx + 1) + '/' + TUTORIAL.length + ') · ' + hint;
+        }
+        if (App.showBubble) App.showBubble(text);
+        if (App.speakThen) App.speakThen(text, line.emotion);
+      }
       if (window.Avatar && Avatar.setEmotion) Avatar.setEmotion(line.emotion, line.attitude);
-      if (window.App && App.speakThen) App.speakThen(text, line.emotion);
       Onboarding._tutIdx++;
     },
 
@@ -296,6 +329,35 @@
         return true;
       }
       return false;
+    },
+
+    skipTutorial: function () {
+      Onboarding._tutIdx = TUTORIAL.length;
+      Config.set('state.onboardingDone', true);
+      var bar = document.getElementById('input-bar');
+      if (bar) bar.classList.remove('spot');
+      var skipBtn = document.getElementById('btn-tut-skip');
+      if (skipBtn) skipBtn.classList.add('hidden');
+      var ls = document.getElementById('log-sub');
+      if (ls) ls.classList.remove('tut');
+      if (window.App) {
+        App._inTutorial = false;
+        App.updateHud();
+        App.enterGame(true);
+      }
+    },
+
+    replayTutorial: function () {
+      Config.set('state.onboardingDone', false);
+      Onboarding._onDone = function () {
+        if (window.App) App.enterGame(true);
+      };
+      Onboarding._tutIdx = 0;
+      Onboarding._tutorial();
+    },
+
+    totalSteps: function () {
+      return TUTORIAL.length;
     }
   };
 
