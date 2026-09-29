@@ -450,10 +450,11 @@
     },
 
     /* ------------------------------------------------------------ trust */
-    trust: function () { return Util.clamp(Number(Game.s.trust) || 0, 0, 100); },
+    trust: function () { return Util.clamp(Number((Game.s && Game.s.trust) || 0), 0, 100); },
     trustBand: function () { return trustBandOf(Game.trust())[1]; },
     /* Clamped per call so one turn cannot jump two bands. */
     addTrust: function (n, why) {
+      if (!Game.s) return 0;
       var d = Util.clamp(Math.round(Number(n) || 0), -TRUST_STEP_MAX, TRUST_STEP_MAX);
       if (!d) return 0;
       var before = Game.trust();
@@ -462,6 +463,7 @@
       return Game.s.trust - before;
     },
     setTrust: function (n) {
+      if (!Game.s) return;
       Game.s.trust = Util.clamp(Math.round(Number(n) || 0), 0, 100);
       Game.save(); Game.emit('trust');
     },
@@ -475,7 +477,7 @@
       return { delta: Util.clamp(total, -TRUST_STEP_MAX, TRUST_STEP_MAX), why: why };
     },
     KNOWABLE: KNOWABLE,
-    knows: function (key) { return (Game.s.known || []).indexOf(key) !== -1; },
+    knows: function (key) { return ((Game.s && Game.s.known) || []).indexOf(key) !== -1; },
     learn: function (keys) {
       var added = [];
       (Array.isArray(keys) ? keys : [keys]).forEach(function (k) {

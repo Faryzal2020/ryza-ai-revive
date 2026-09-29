@@ -114,20 +114,21 @@
 
     /* ---- character / persona (fed into the system prompt) ---- */
     chara: {
-      personality: '明るく前向き、少しおっちょこちょいな錬金術士',
-      likes: '調合、冒険、甘いもの',
-      dislikes: 'じっとしていること',
-      situation: 'クーケン島の自分の家で、君と一緒に過ごしている',
-      callMe: '君',
+      personality: 'Bright, positive, slightly clumsy alchemist',
+      likes: 'Synthesis, adventure, sweets',
+      dislikes: 'Sitting still',
+      situation: 'Spending time with you at my house on Kurken Island',
+      callMe: 'you',
       extra: ''
     },
 
     /* ---- player profile (onboarding answers) ---- */
     profile: {
       name: '', birthday: '', gender: '',
-      appearance: '', background: '', hobby: '', interest: '',
-      interestExtra: '', storyStart: '',
-      futureGoals: '', personality: ''
+      appearance: '', personality: '',
+      background: '', hobby: '', interest: '',
+      interestExtra: '', intimateBody: '', privateSecret: '',
+      futureGoals: '', storyStart: ''
     },
 
     audio: { bgm: 0.55, ambient: 0.45, voice: 1, se: 0.85 },
@@ -151,7 +152,9 @@
       quickCollapsed: true,          // hide the extra stage buttons (zoom/posture/replay/fav); the official column is chevron + flag + bag
       timeMode: 'real',              // real=墙钟(LLM不可拨) | flow=游戏钟(LLM可拨) | manual=🌤
       flowSpeed: 60,                 // flow: in-game minutes per real minute (60 ⇒ 1 game hr / real min)
-      cheat: false                   // 作弊：体力 + 金币无限（地图/任务不改）
+      cheat: false,                  // 作弊：体力 + 金币无限（地图/任务不改）
+      debugStats: false,             // 调试：画面显示 LLM 隐藏状态监视器
+      autosave: true                 // 自动存档：LLM回复后及定时自动保存进度
     },
 
     /* ---- session state ---- */
@@ -237,6 +240,66 @@
     data.state.postureMigrated = true;
   }
 
+  var CHARA_DEFAULTS = {
+    ja: {
+      personality: '明るく前向き、少しおっちょこちょいな錬金術士',
+      likes: '調合、冒険、甘いもの',
+      dislikes: 'じっとしていること',
+      situation: 'クーケン島の自分の家で、君と一緒に過ごしている',
+      callMe: '君',
+      extra: ''
+    },
+    en: {
+      personality: 'Bright, positive, slightly clumsy alchemist',
+      likes: 'Synthesis, adventure, sweets',
+      dislikes: 'Sitting still',
+      situation: 'Spending time with you at my house on Kurken Island',
+      callMe: 'you',
+      extra: ''
+    },
+    zh: {
+      personality: '开朗积极、有点冒失的炼金术士',
+      likes: '调合、冒险、甜食',
+      dislikes: '静止不动',
+      situation: '在库肯岛自己的家里，正和你一起度过',
+      callMe: '你',
+      extra: ''
+    },
+    'zh-tw': {
+      personality: '開朗積極、有點冒失的鍊金術士',
+      likes: '調合、冒險、甜食',
+      dislikes: '靜止不動',
+      situation: '在庫肯島自己的家裡，正和你一起度過',
+      callMe: '你',
+      extra: ''
+    },
+    id: {
+      personality: 'Alkemis yang ceria, berpikiran positif, dan sedikit ceroboh',
+      likes: 'Sintesis, petualangan, makanan manis',
+      dislikes: 'Berdiam diri',
+      situation: 'Menghabiskan waktu bersamamu di rumahku di Pulau Kurken',
+      callMe: 'kamu',
+      extra: ''
+    }
+  };
+
+  function charaDefaults(lang) {
+    lang = lang || (data && data.app && data.app.lang) || 'en';
+    return CHARA_DEFAULTS[lang] || CHARA_DEFAULTS.en;
+  }
+
+  /* Migration: If chara is still set to the old Japanese default strings but language is not Japanese,
+     seamlessly adapt to the current UI language default. */
+  if (data.app && data.app.lang && data.app.lang !== 'ja' && data.chara) {
+    var jDef = CHARA_DEFAULTS.ja;
+    var tDef = CHARA_DEFAULTS[data.app.lang] || CHARA_DEFAULTS.en;
+    if (data.chara.personality === jDef.personality) data.chara.personality = tDef.personality;
+    if (data.chara.likes === jDef.likes) data.chara.likes = tDef.likes;
+    if (data.chara.dislikes === jDef.dislikes) data.chara.dislikes = tDef.dislikes;
+    if (data.chara.situation === jDef.situation) data.chara.situation = tDef.situation;
+    if (data.chara.callMe === jDef.callMe) data.chara.callMe = tDef.callMe;
+  }
+
   /* Text-speed steps and their icons. Shared UI data: settings.js builds the
      picker from it and app.js cycles through it from the ×N button, so it lives
      with the other tables rather than inside either of them. */
@@ -291,8 +354,13 @@
         saveTimer = setTimeout(syncToDisk, 200);
       }
     },
+    getCharaDefaults: charaDefaults,
     reset: function () {
       data = deepMerge(DEFAULTS, {});
+      var lang = (data.app && data.app.lang) || 'en';
+      if (CHARA_DEFAULTS[lang]) {
+        Object.assign(data.chara, CHARA_DEFAULTS[lang]);
+      }
       Config.save();
     },
     /* Whole-settings import/export, used by the settings screen. */

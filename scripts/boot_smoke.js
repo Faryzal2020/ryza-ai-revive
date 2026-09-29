@@ -273,7 +273,11 @@ for (const f of ['util.js', 'config.js', 'i18n.js', 'api.js', 'providers.js', 't
     sandbox.Nsfw.onTurn(nsfwTag);
     ok(!sandbox.Nsfw.active(), 'disabled setting blocks llm nsfw:on');
     sandbox.Nsfw.setEnabled(true);
-    ok(sandbox.Nsfw.active(), 'settings toggle enables nsfw');
+    ok(!sandbox.Nsfw.active(), 'settings toggle enables nsfw permission without undressing');
+    ok(/着ている/.test(sandbox.Nsfw.screenFact()),
+       'prompt tells the LLM she is dressed');
+    sandbox.Nsfw.onTurn(nsfwTag);
+    ok(sandbox.Nsfw.active(), 'llm nsfw:on tag undresses ryza when enabled');
     ok(/肌が見えている/.test(sandbox.Nsfw.screenFact()),
        'prompt tells the LLM she is undressed');
     sandbox.Nsfw.setEnabled(false);

@@ -160,10 +160,13 @@
       App._bindChrome();
       App._bindTalk();
       App._bindOverlays();
-      Game.on(function () { App.refreshHud(); App._syncOpenViews(); });
+      Game.on(function () { App.refreshHud(); App._syncOpenViews(); if (App.updateDebugStats) App.updateDebugStats(); });
 
       /* Ports first: they must not depend on the asset chain below succeeding. */
       App._wirePorts();
+      if (window.Nsfw && typeof Nsfw.restore === 'function') {
+        Nsfw.restore();
+      }
 
       Promise.all([Config.hydrate(), World.init(), VoiceBank.load(), Sound.init(),
                    (window.Lorebook ? Lorebook.init() : Promise.resolve())]).then(function () {
@@ -177,8 +180,19 @@
           App._tickTime();          // adopt the wall/flow clock once the scene is up
         });
         setInterval(App._tickTime, 30000);
+        setInterval(function () {
+          if (App.autosave) {
+            App.autosave(true);
+          }
+        }, 60000);
         document.addEventListener('visibilitychange', function () {
           if (!document.hidden) App._tickTime();
+          else if (App.autosave) {
+            App.autosave(true);
+          }
+        });
+        window.addEventListener('beforeunload', function () {
+          if (App.autosave) App.autosave(true);
         });
         App.updateHud();
         App.renderWorld();
@@ -202,6 +216,8 @@
         App.buildSettings();
         App.buildCharaForm();
         App.renderMemory();
+        if (App.syncDebugStats) App.syncDebugStats();
+        if (App.syncNsfwSwitches) App.syncNsfwSwitches();
         /* Official groups open on day 0 / 3 / 5 since first launch. */
         if (window.Daily && Daily.dayIndex) Welcome.bumpDay(Daily.dayIndex());
         Welcome.render(document.getElementById('welcome-body'));
@@ -213,7 +229,9 @@
         });
 
         Onboarding.showTitle(function () {
-          if (!Onboarding.isDone()) {
+          if (window.Settings && Settings.openStartMenu) {
+            Settings.openStartMenu();
+          } else if (!Onboarding.isDone()) {
             App._inTutorial = true; App._tutClass(true);
             Onboarding.start(function () {
               App._inTutorial = false; App._tutClass(false);
@@ -491,7 +509,6 @@
         App._showDisclosure();
         App._dailyNudge();
       }
-      if (fromOnboard) return;
       App.greet();
     },
 
@@ -790,6 +807,29 @@
         };
       }
       App.setQuickCollapsed(!!(Config.section('app') || {}).quickCollapsed, true);
+
+      var dbgToggle = document.getElementById('btn-debug-toggle');
+      if (dbgToggle) {
+        dbgToggle.onclick = function () {
+          var cur = !!(Config.section('app') || {}).debugStats;
+          Config.set('app.debugStats', !cur);
+          if (App.syncDebugStats) App.syncDebugStats();
+        };
+      }
+      var dbgMin = document.getElementById('btn-dbg-min');
+      if (dbgMin) {
+        dbgMin.onclick = function () {
+          var panel = document.getElementById('debug-stats-panel');
+          if (panel) panel.classList.toggle('minimized');
+        };
+      }
+      var dbgClose = document.getElementById('btn-dbg-close');
+      if (dbgClose) {
+        dbgClose.onclick = function () {
+          Config.set('app.debugStats', false);
+          if (App.syncDebugStats) App.syncDebugStats();
+        };
+      }
       var stageEl = document.getElementById('stage');
       if (stageEl) {
         stageEl.addEventListener('wheel', function (ev) {
@@ -892,10 +932,6 @@
       if (!window.Nsfw) return;
       var next = typeof targetVal === 'boolean' ? targetVal : !Nsfw.enabled();
       Nsfw.setEnabled(next);
-      if (next && window.Avatar && Avatar.postureKey && Avatar.postureKey() === 'posture_sitting') {
-        App.setPosture('posture_standing');
-      }
-      if (window.Sound) Sound.se('skin_change');
       App.toast(next ? (I18n.t('nsfw.on') || 'NSFW mode enabled') : (I18n.t('nsfw.off') || 'Normal outfit restored'));
       App.syncNsfwSwitches();
     },
@@ -904,6 +940,8 @@
       var active = window.Nsfw ? Nsfw.enabled() : false;
       var skinToggle = document.getElementById('skin-nsfw-toggle');
       if (skinToggle) skinToggle.classList.toggle('on', active);
+      var settingsToggle = document.getElementById('settings-nsfw-toggle');
+      if (settingsToggle) settingsToggle.classList.toggle('on', active);
     },
 
     showView: function (name) {
@@ -917,6 +955,12 @@
         App.renderWorld();
       } else {
         Sound.setRoute('talk');
+      }
+      if (name === 'chara') {
+        if (window.Settings && Settings.buildCharaForm) Settings.buildCharaForm();
+      }
+      if (name === 'settings') {
+        if (window.Settings && Settings.buildSettings) Settings.buildSettings();
       }
       if (name === 'memory') App.renderMemory();
       if (name === 'skin') {
@@ -1325,6 +1369,12 @@
       };
       send.onclick = go;
       input.onkeydown = function (e) { if (e.key === 'Enter') go(); };
+      var bumpBtn = document.getElementById('btn-bump');
+      if (bumpBtn) {
+        bumpBtn.onclick = function () {
+          if (App.bump) App.bump();
+        };
+      }
       var hitEl = document.getElementById('avatar-hit');
       hitEl.onclick = function (ev) {
         /* A drag ends with a click event; the pointer is not a tap then. */
@@ -1352,7 +1402,7 @@
       var retry = document.getElementById('btn-retry');
       if (retry) retry.onclick = function () {
         document.getElementById('retry-bar').classList.add('hidden');
-        if (App._lastText) App.say(App._lastText);
+        if (App._lastText) App.say(App._lastText, App._lastDisplayText);
       };
     },
 
@@ -1786,6 +1836,7 @@
           App.history.push({ role: 'assistant', content: Api.formatHistoryReply(opener) });
           App.saveHistory();
           Avatar.setEmotion(id === 'isekai' ? 'surprised' : 'happy', 'agree');
+          if (App.autosave) App.autosave(true);
           return;
         }
       }
@@ -1795,7 +1846,123 @@
       Avatar.setEmotion('happy', 'agree');
     },
 
-    say: function (text) {
+    lastReplyStats: null,
+
+    syncDebugStats: function () {
+      var enabled = !!(Config.section('app') || {}).debugStats;
+      var panel = document.getElementById('debug-stats-panel');
+      var toggleBtn = document.getElementById('btn-debug-toggle');
+      if (panel) panel.classList.toggle('hidden', !enabled);
+      if (toggleBtn) toggleBtn.classList.toggle('active', enabled);
+      if (enabled && App.updateDebugStats) App.updateDebugStats();
+    },
+
+    updateDebugStats: function () {
+      var panel = document.getElementById('debug-stats-panel');
+      if (!panel || panel.classList.contains('hidden')) return;
+      var content = document.getElementById('debug-stats-content');
+      if (!content) return;
+
+      var hasGame = !!(window.Game && Game.s);
+      var trust = (hasGame && Game.trust) ? Game.trust() : 0;
+      var band = (hasGame && Game.trustBand) ? Game.trustBand() : '-';
+      var stam = (hasGame && Game.stamina) ? Game.stamina() : 0;
+      var maxStam = (hasGame && Game.max) ? Game.max() : 100;
+      var st = (window.Config && Config.section('state')) || {};
+      var knows = function (k) {
+        return !!(hasGame && Game.knows && Game.knows(k));
+      };
+
+      var isUndressed = (window.Nsfw && typeof Nsfw.active === 'function') ? Nsfw.active() : false;
+      var knownList = (hasGame && Game.s.known) ? Game.s.known : [];
+
+      var tName = knows('name');
+      var tBg = knows('background');
+      var tHobby = knows('hobby') || knows('interest');
+      var tBody = isUndressed || knows('intimateBody');
+      var tSecrets = trust >= 85 || knows('futureGoals') || knows('privateSecret');
+
+      var html = [];
+      html.push('<div class="dbg-sec">');
+      html.push('  <div class="dbg-sec-title">' + App.esc(I18n.t('debug.liveStats') || 'Live Hidden Stats') + '</div>');
+      html.push('  <div class="dbg-grid">');
+      html.push('    <div class="dbg-item"><span class="dbg-k">' + App.esc(I18n.t('debug.trust') || 'Trust') + ':</span><span class="dbg-v">' + trust + ' / 100 <span class="dbg-tag on">' + App.esc(band) + '</span></span></div>');
+      html.push('    <div class="dbg-item"><span class="dbg-k">' + App.esc(I18n.t('debug.stamina') || 'Stamina') + ':</span><span class="dbg-v">' + stam + ' / ' + maxStam + '</span></div>');
+      html.push('    <div class="dbg-item"><span class="dbg-k">Stage:</span><span class="dbg-v">' + App.esc(st.stage || '-') + '</span></div>');
+      html.push('    <div class="dbg-item"><span class="dbg-k">TOD:</span><span class="dbg-v">' + App.esc(st.tod || '-') + '</span></div>');
+      if (window.Nsfw) {
+        html.push('    <div class="dbg-item"><span class="dbg-k">Attire:</span><span class="dbg-v">' + (isUndressed ? '<span class="dbg-tag off">Undressed</span>' : '<span class="dbg-tag on">Clothed</span>') + '</span></div>');
+      }
+      html.push('  </div>');
+      html.push('</div>');
+
+      html.push('<div class="dbg-sec">');
+      html.push('  <div class="dbg-sec-title">' + App.esc(I18n.t('debug.known') || 'Persona Visibility') + '</div>');
+      html.push('  <div class="dbg-tier-list">');
+      html.push('    <div class="dbg-tier-row">');
+      html.push('      <span class="dbg-k">Name:</span> <span class="dbg-tag ' + (tName ? 'on' : 'off') + '">' + (tName ? 'Known' : 'Hidden') + '</span>');
+      html.push('      <span class="dbg-k" style="margin-left:8px">Appearance:</span> <span class="dbg-tag on">Visible</span>');
+      html.push('    </div>');
+      html.push('    <div class="dbg-tier-row">');
+      html.push('      <span class="dbg-k">Background:</span> <span class="dbg-tag ' + (tBg ? 'on' : 'off') + '">' + (tBg ? 'Known' : 'Hidden') + '</span>');
+      html.push('      <span class="dbg-k" style="margin-left:8px">Hobbies:</span> <span class="dbg-tag ' + (tHobby ? 'on' : 'off') + '">' + (tHobby ? 'Known' : 'Hidden') + '</span>');
+      html.push('    </div>');
+      html.push('    <div class="dbg-tier-row">');
+      html.push('      <span class="dbg-k">Intimate Body:</span> <span class="dbg-tag ' + (tBody ? 'on' : 'off') + '">' + (tBody ? 'Revealed' : 'Concealed') + '</span>');
+      html.push('      <span class="dbg-k" style="margin-left:8px">Secrets/Goals:</span> <span class="dbg-tag ' + (tSecrets ? 'on' : 'off') + '">' + (tSecrets ? 'Unlocked' : 'Locked') + '</span>');
+      html.push('    </div>');
+      html.push('  </div>');
+      html.push('  <div style="margin-top:6px;font-size:10.5px;color:var(--dim)"><b>known[]:</b> <span class="dbg-v">' + (knownList.length ? App.esc(knownList.join(', ')) : '(none)') + '</span></div>');
+      html.push('</div>');
+
+      html.push('<div class="dbg-sec">');
+      html.push('  <div class="dbg-sec-title">' + App.esc(I18n.t('debug.lastTurn') || 'Last Turn LLM Output') + '</div>');
+      if (App.lastReplyStats) {
+        var lr = App.lastReplyStats;
+        html.push('  <div class="dbg-tags-row">');
+        html.push('    <span class="dbg-chip">Emotion: ' + App.esc((lr.emotion || '-') + ' / ' + (lr.attitude || '-')) + '</span>');
+        if (lr.stage || lr.tod) {
+          html.push('    <span class="dbg-chip">Stage: ' + App.esc((lr.stage || '-') + ' / ' + (lr.tod || '-')) + '</span>');
+        }
+        if (lr.undress) {
+          html.push('    <span class="dbg-chip">Undress: ' + App.esc(lr.undress) + '</span>');
+        }
+        html.push('  </div>');
+        if (lr.state && typeof lr.state === 'object' && Object.keys(lr.state).length > 0) {
+          html.push('  <pre class="dbg-json">' + App.esc(JSON.stringify(lr.state, null, 2)) + '</pre>');
+        } else {
+          html.push('  <div style="font-size:11px;color:var(--dim)">' + App.esc(I18n.t('debug.noState') || '(No <state> tag reported)') + '</div>');
+        }
+      } else {
+        html.push('  <div style="font-size:11px;color:var(--dim)">(Waiting for first LLM turn...)</div>');
+      }
+      html.push('</div>');
+
+      content.innerHTML = html.join('\n');
+    },
+
+    bump: function () {
+      if (App.speaking) return;
+      var lang = (window.Langs && Langs.llm && Langs.llm()) || 'ja';
+      var promptText = '';
+      var displayText = '';
+      if (lang === 'zh' || lang === 'zh-tw') {
+        displayText = '（静静看着莱莎，由她主导继续……）';
+        promptText = '（玩家静静看着你，等待你继续。请根据当前情境主动推进：你可以继续刚才做的事、提出新的炼金构想或冒险提议、向玩家提问、自言自语或聊聊你的心里话，随你喜欢展开行动。）';
+      } else if (lang === 'id') {
+        displayText = '（Memperhatikan Ryza dalam diam, membiarkannya mengambil inisiatif...）';
+        promptText = '（Pemain terdiam memperlakukanmu dengan lembut dan menunggumu melanjutkan. Ambil inisiatif untuk melakukan apa pun yang ingin kamu lakukan: lanjutkan apa yang sedang kamu kerjakan, tanyakan sesuatu ke pemain, usulkan petualangan atau ide alkimia baru, atau ceritakan isi hatimu sesukamu.）';
+      } else if (lang === 'en') {
+        displayText = '（Watching quietly, letting Ryza take the lead...）';
+        promptText = '（The player pauses quietly, looking at you warmly and waiting for you to continue. Take the initiative to do whatever you want: continue your current activity or train of thought, bring up an alchemy idea or adventure plan, ask the player something, or freely follow your own desires and agenda.）';
+      } else {
+        displayText = '（静かにライザを見守り、続きを任せる……）';
+        promptText = '（プレイヤーは静かに見守り、あなたの行動を待っている。あなたの自由な意思で自発的に続けて：いまやっていることを進める、錬金のアイデアや冒険の提案をする、プレイヤーに何か尋ねる、あるいは自分の好きな話題や思いを自由に語って。）';
+      }
+      App.say(promptText, displayText);
+    },
+
+    say: function (text, displayText) {
       var st = Config.section('state');
       if (!Config.section('llm').apiKey) {
         App.toast(I18n.t('toast.needKey'), true);
@@ -1808,11 +1975,14 @@
         return;
       }
       App._lastText = text;
+      App._lastDisplayText = displayText || null;
       var retryBar = document.getElementById('retry-bar');
       if (retryBar) retryBar.classList.add('hidden');
-      App._appendMsg('user', text);
+      App._appendMsg('user', displayText || text);
       App.speaking = true;
       document.getElementById('btn-send').disabled = true;
+      var bumpBtn = document.getElementById('btn-bump');
+      if (bumpBtn) bumpBtn.disabled = true;
       App.showTyping();
       Welcome.mark('talk');            /* official activity: app_launched x5 */
 
@@ -1847,6 +2017,8 @@
           App.speaking = false;
           if (window.Turn && Turn.finishTurn) Turn.finishTurn();
           document.getElementById('btn-send').disabled = false;
+          var bumpBtn = document.getElementById('btn-bump');
+          if (bumpBtn) bumpBtn.disabled = false;
           App.history.push({ role: 'user', content: text });
           App.saveHistory();
           App.remember('user', text);
@@ -1857,6 +2029,17 @@
             Game.applyDelta(reply.state, 'llm');
             App._applySceneDelta(reply.state);
           }
+          App.lastReplyStats = {
+            emotion: reply.emotion || null,
+            attitude: reply.attitude || null,
+            undress: reply.nsfw || null,
+            stage: reply.stage || null,
+            tod: reply.tod || null,
+            state: reply.state || null,
+            at: Date.now()
+          };
+          if (App.updateDebugStats) App.updateDebugStats();
+
           if (window.Lorebook) Lorebook.noteReply(reply.text);
           /* She used the player's name in her reply: she has learned it,
              whatever the model reported. Cheap and robust. */
@@ -1867,7 +2050,14 @@
           var cost = Game.turnCost(st.mode, st.style);
           Game.spend(cost, 'talk');
 
-          if (window.Nsfw) Nsfw.onTurn(reply);
+          if (window.Nsfw) {
+            Nsfw.onTurn(reply);
+            if (reply.nsfw === true && Nsfw.active()) {
+              if (window.Avatar && Avatar.postureKey && Avatar.postureKey() === 'posture_sitting') {
+                App.setPosture('posture_standing');
+              }
+            }
+          }
           /* Omit = keep (same as undress). A missed tag must not snap the face
              back to neutral/agree. */
           if (reply.emotion || reply.attitude) {
@@ -1891,6 +2081,9 @@
              quest progress through <state>, don't double-count it here. */
           if (!(reply.state && reply.state.quest)) Quests.progressEvent('talk');
           Quests.render(document.getElementById('quest-list'), {});
+
+          /* Autosave progress & memory after LLM reply */
+          if (App.autosave) App.autosave(false);
         })
         .catch(function (e) {
           /* Superseded on purpose (interruption / a newer turn): there is
@@ -1906,6 +2099,8 @@
           App.speaking = false;
           if (window.Turn && Turn.finishTurn) Turn.finishTurn();
           document.getElementById('btn-send').disabled = false;
+          var bumpBtn = document.getElementById('btn-bump');
+          if (bumpBtn) bumpBtn.disabled = false;
           var bar = document.getElementById('retry-bar');
           if (bar && e.message !== 'NO_KEY') bar.classList.remove('hidden');
           var msg = String(e.message || '');
@@ -2669,6 +2864,10 @@
         }
         App.toast(I18n.tf('toast.modelsOk', '已拉取 {n} 个模型', { n: App._llmModels.length }));
         App.buildSettings();
+        if (window.Settings && Settings.renderStartMenu) {
+          var ovStart = document.getElementById('overlay-start-menu');
+          if (ovStart && !ovStart.classList.contains('hidden')) Settings.renderStartMenu();
+        }
       }).catch(function (e) {
         App.toast(I18n.t('toast.modelsFail') + (e && e.message ? e.message : ''), true);
       });
@@ -2942,7 +3141,61 @@
     buildCharaForm: function () { return Settings.buildCharaForm(); },
     _testLlm: function () { return Settings._testLlm(); },
     _testTts: function () { return Settings._testTts(); },
-    _renderSlots: function (w) { return Settings._renderSlots(w); }
+    _renderSlots: function (w) { return Settings._renderSlots(w); },
+    openStartMenu: function () { if (window.Settings && Settings.openStartMenu) Settings.openStartMenu(); },
+    saveSlot: function (slotIndex) {
+      if (window.Settings && Settings._snapshot && Settings._writeSlots) {
+        var all = Settings._loadSlots();
+        all[slotIndex] = Settings._snapshot();
+        Settings._writeSlots(all);
+        if (Settings.setActiveSlot) Settings.setActiveSlot(slotIndex);
+        else Settings.activeSlot = slotIndex;
+      }
+    },
+    autosave: function (silent) {
+      if ((Config.section('app') || {}).autosave === false) return;
+
+      try {
+        if (window.Config && Config.save) Config.save();
+        if (App.saveHistory) App.saveHistory();
+        if (App.saveMemory) App.saveMemory();
+        if (window.Game && Game.save) Game.save();
+        if (window.Memory && Memory.save) Memory.save();
+
+        if (window.Settings && Settings._snapshot && Settings._writeSlots) {
+          var targetSlot = (Settings.activeSlot != null && !isNaN(parseInt(Settings.activeSlot, 10)))
+            ? parseInt(Settings.activeSlot, 10) : 0;
+          if (Settings.setActiveSlot) Settings.setActiveSlot(targetSlot);
+          else Settings.activeSlot = targetSlot;
+
+          var all = Settings._loadSlots();
+          all[targetSlot] = Settings._snapshot();
+          Settings._writeSlots(all);
+
+          var charaView = document.getElementById('view-chara');
+          if (charaView && charaView.classList.contains('active') && Settings.buildCharaForm) {
+            Settings.buildCharaForm();
+          }
+        }
+
+        if (App._flashAutosaveIndicator) App._flashAutosaveIndicator();
+
+        if (!silent) {
+          App.toast(I18n.t('toast.autosaved') || 'Game progress autosaved');
+        }
+      } catch (e) {
+        console.warn('Autosave error:', e);
+      }
+    },
+    _flashAutosaveIndicator: function () {
+      var el = document.getElementById('hud-autosave');
+      if (!el) return;
+      el.classList.add('flash');
+      if (App._autosaveTimer) clearTimeout(App._autosaveTimer);
+      App._autosaveTimer = setTimeout(function () {
+        el.classList.remove('flash');
+      }, 1500);
+    }
   };
 
   global.App = App;

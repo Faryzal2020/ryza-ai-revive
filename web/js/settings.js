@@ -353,11 +353,31 @@
       App._switch(w, T('settings.rim'), Config.section('app').rim !== false,
         function (v) { Config.set('app.rim', v); });
       var nsfwRow = App._switch(w, T('settings.nsfw'), !!(window.Nsfw && Nsfw.enabled()),
-        function (v) { if (window.Nsfw) Nsfw.setEnabled(v); });
+        function (v) {
+          if (window.App && App.toggleNsfw) App.toggleNsfw(v);
+          else if (window.Nsfw) Nsfw.setEnabled(v);
+        });
+      var swEl = nsfwRow && nsfwRow.querySelector ? nsfwRow.querySelector('.switch') : null;
+      if (swEl) swEl.id = 'settings-nsfw-toggle';
       var nsfwHint = document.createElement('div');
       nsfwHint.className = 'hint';
       nsfwHint.textContent = T('settings.nsfwHint');
       w.appendChild(nsfwHint);
+      App._switch(w, T('settings.debugStats'), !!Config.section('app').debugStats,
+        function (v) {
+          Config.set('app.debugStats', !!v);
+          if (window.App && App.syncDebugStats) App.syncDebugStats();
+        });
+      var dbgHint = document.createElement('div');
+      dbgHint.className = 'hint';
+      dbgHint.textContent = T('settings.debugStats.hint');
+      w.appendChild(dbgHint);
+      App._switch(w, T('settings.autosave'), Config.section('app').autosave !== false,
+        function (v) { Config.set('app.autosave', !!v); });
+      var autoHint = document.createElement('div');
+      autoHint.className = 'hint';
+      autoHint.textContent = T('settings.autosave.hint');
+      w.appendChild(autoHint);
       App._switch(w, T('settings.stt'), Config.section('app').stt !== 'off',
         function (v) {
           /* 'on' going forward; an old save holding 'webSpeech' also means on,
@@ -610,18 +630,30 @@
         { v: 'male', t: T('onb.gender.male') },
         { v: 'other', t: T('onb.gender.other') }
       ], function (v) { Config.set('profile.gender', v); });
+
+      /* Tier 1: Outward Persona */
       App._field(w, T('profile.appearance'), p.appearance,
-        function (v) { Config.set('profile.appearance', v); });
+        function (v) { Config.set('profile.appearance', v); }, { multi: true, hint: T('profile.appearance.hint') });
+      App._field(w, T('profile.personality'), p.personality,
+        function (v) { Config.set('profile.personality', v); }, { hint: T('profile.personality.hint') });
+
+      /* Tier 2: Social Persona */
       App._field(w, T('profile.background'), p.background,
-        function (v) { Config.set('profile.background', v); });
+        function (v) { Config.set('profile.background', v); }, { multi: true, hint: T('profile.background.hint') });
       App._field(w, T('profile.hobby'), p.hobby,
-        function (v) { Config.set('profile.hobby', v); });
+        function (v) { Config.set('profile.hobby', v); }, { hint: T('profile.hobby.hint') });
       App._field(w, T('profile.interest'), p.interest,
         function (v) { Config.set('profile.interest', v); });
+
+      /* Tier 3: Concealed Physical Anatomy */
+      App._field(w, T('profile.intimateBody'), p.intimateBody,
+        function (v) { Config.set('profile.intimateBody', v); }, { multi: true, hint: T('profile.intimateBody.hint') });
+
+      /* Tier 4: Deep Secrets & Desires */
+      App._field(w, T('profile.privateSecret'), p.privateSecret,
+        function (v) { Config.set('profile.privateSecret', v); }, { multi: true, hint: T('profile.privateSecret.hint') });
       App._field(w, T('profile.futureGoals'), p.futureGoals,
-        function (v) { Config.set('profile.futureGoals', v); });
-      App._field(w, T('profile.personality'), p.personality,
-        function (v) { Config.set('profile.personality', v); });
+        function (v) { Config.set('profile.futureGoals', v); }, { multi: true, hint: T('profile.futureGoals.hint') });
 
       App._title(w, T('slot.title'));
       Settings._renderSlots(w);
@@ -669,6 +701,18 @@
       }
     },
 
+    activeSlot: (function () {
+      try {
+        var s = localStorage.getItem('ryza.active_slot');
+        return (s !== null && !isNaN(parseInt(s, 10))) ? parseInt(s, 10) : 0;
+      } catch (e) { return 0; }
+    })(),
+
+    setActiveSlot: function (idx) {
+      Settings.activeSlot = (idx != null && !isNaN(parseInt(idx, 10))) ? parseInt(idx, 10) : 0;
+      try { localStorage.setItem('ryza.active_slot', String(Settings.activeSlot)); } catch (e) {}
+    },
+
     _snapshot: function () {
       var st = Config.section('state');
       var place = World.find(st.stage);
@@ -686,14 +730,30 @@
       };
     },
 
-    _applySnapshot: function (snap) {
+    _applySnapshot: function (snap, slotIdx) {
       if (!snap || !snap.settings) {
         App.toast(I18n.t('slot.loadFail'), true);
         return false;
       }
+      /* Preserve existing user credentials so loading a save slot never wipes keys */
+      var prevLlm = JSON.parse(JSON.stringify(Config.section('llm') || {}));
+      var prevTts = JSON.parse(JSON.stringify(Config.section('tts') || {}));
+      var prevStt = JSON.parse(JSON.stringify(Config.section('stt') || {}));
+
       Config.importJSON(JSON.stringify(snap.settings));
+
+      if (prevLlm.apiKey) Config.set('llm.apiKey', prevLlm.apiKey);
+      if (prevLlm.baseUrl) Config.set('llm.baseUrl', prevLlm.baseUrl);
+      if (prevLlm.model) Config.set('llm.model', prevLlm.model);
+      if (prevTts.apiKey) Config.set('tts.apiKey', prevTts.apiKey);
+      if (prevTts.qwenApiKey) Config.set('tts.qwenApiKey', prevTts.qwenApiKey);
+      if (prevStt.apiKey) Config.set('stt.apiKey', prevStt.apiKey);
+
+      if (slotIdx != null) Settings.setActiveSlot(slotIdx);
+
       App.history = snap.history || [];
       if (App.saveHistory) App.saveHistory();
+      if (App._renderHistory) App._renderHistory();
       App.memory = snap.memory || [];
       App.saveMemory();
       if (window.Memory) Memory.restore(snap.longmem);
@@ -704,6 +764,8 @@
       Alarm.items = snap.alarms || [];
       Alarm.save();
       var st = Config.section('state');
+      if (window.Nsfw && typeof Nsfw.restore === 'function') Nsfw.restore();
+      if (window.App && App.syncNsfwSwitches) App.syncNsfwSwitches();
       Avatar.loadSkin(st.skin);
       App._loadSceneFor(st.stage, st.tod);
       if (window.Sound) {
@@ -728,15 +790,16 @@
       var slots = Settings._loadSlots();
       slots.forEach(function (s, i) {
         var row = document.createElement('div');
-        row.className = 'slot-row';
+        row.className = 'slot-row' + (Settings.activeSlot === i ? ' slot-active' : '');
         var info = document.createElement('div');
         info.className = 'slot-info';
         if (s) {
           var d = new Date(s.at);
           info.textContent = (i + 1) + '. ' + (s.label || '') +
+            (Settings.activeSlot === i ? ' [Active]' : '') +
             ' · day ' + (s.day || 1) + ' · ' +
             'Lv' + (s.game ? 1 + Math.floor(Math.sqrt((s.game.exp_total || 0) / 30)) : '?') + ' · ' +
-            d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+            d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } else {
           info.textContent = (i + 1) + '. ' + I18n.t('slot.empty');
         }
@@ -748,6 +811,7 @@
           var all = Settings._loadSlots();
           all[i] = Settings._snapshot();
           if (!Settings._writeSlots(all)) return;
+          Settings.setActiveSlot(i);
           Settings.buildCharaForm();
           App.toast(I18n.t('toast.saved'));
         };
@@ -759,15 +823,226 @@
         load.onclick = function () {
           var all = Settings._loadSlots();
           if (!all[i]) return;
-          if (!Settings._applySnapshot(all[i])) return;
+          if (!Settings._applySnapshot(all[i], i)) return;
           App.toast(I18n.t('slot.load'));
           App.showView('talk');
+        };
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'mini-btn danger';
+        del.textContent = I18n.t('start.deleteSlot') || 'Delete';
+        del.disabled = !s;
+        del.onclick = function () {
+          if (confirm(I18n.t('slot.deleteConfirm') || 'Delete this save slot?')) {
+            var all = Settings._loadSlots();
+            all[i] = null;
+            Settings._writeSlots(all);
+            if (Settings.activeSlot === i) {
+              if (Settings.setActiveSlot) Settings.setActiveSlot(0);
+              else Settings.activeSlot = 0;
+            }
+            Settings.buildCharaForm();
+            App.toast(I18n.t('slot.deleted') || 'Slot deleted');
+          }
         };
         row.appendChild(info);
         row.appendChild(save);
         row.appendChild(load);
+        row.appendChild(del);
         wrap.appendChild(row);
       });
+    },
+
+    openStartMenu: function () {
+      var elTitle = document.getElementById('overlay-title');
+      if (elTitle) elTitle.classList.add('hidden');
+      var elMenu = document.getElementById('overlay-start-menu');
+      if (elMenu) elMenu.classList.remove('hidden');
+      Settings.renderStartMenu();
+      if (window.App && App.applyI18n) App.applyI18n(elMenu);
+    },
+
+    closeStartMenu: function () {
+      var elMenu = document.getElementById('overlay-start-menu');
+      if (elMenu) elMenu.classList.add('hidden');
+      var elTitle = document.getElementById('overlay-title');
+      if (elTitle) elTitle.classList.remove('hidden');
+    },
+
+    renderStartMenu: function () {
+      var slotWrap = document.getElementById('start-slots-list');
+      if (slotWrap) {
+        slotWrap.innerHTML = '';
+        var slots = Settings._loadSlots();
+        slots.forEach(function (s, i) {
+          var item = document.createElement('div');
+          item.className = 'start-slot-item' + (Settings.activeSlot === i ? ' active-slot' : '');
+
+          var badge = document.createElement('div');
+          badge.className = 'slot-badge';
+          badge.textContent = 'Slot ' + (i + 1) + (Settings.activeSlot === i ? ' ★' : '');
+          item.appendChild(badge);
+
+          var details = document.createElement('div');
+          details.className = 'slot-details';
+          var titleEl = document.createElement('div');
+          titleEl.className = 'slot-label';
+          var metaEl = document.createElement('div');
+          metaEl.className = 'slot-meta';
+
+          if (s) {
+            var d = new Date(s.at);
+            titleEl.textContent = s.label || 'Atelier Ryza';
+            metaEl.textContent = 'Day ' + (s.day || 1) + ' · Lv' +
+              (s.game ? 1 + Math.floor(Math.sqrt((s.game.exp_total || 0) / 30)) : '?') +
+              ' · ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } else {
+            titleEl.textContent = I18n.t('start.emptySlot');
+            metaEl.textContent = I18n.t('start.newGameDesc') || 'Tap to begin a new adventure';
+          }
+          details.appendChild(titleEl);
+          details.appendChild(metaEl);
+          item.appendChild(details);
+
+          var acts = document.createElement('div');
+          acts.className = 'slot-acts';
+          if (s) {
+            var bLoad = document.createElement('button');
+            bLoad.type = 'button';
+            bLoad.className = 'btn primary mini';
+            bLoad.textContent = I18n.t('start.loadGame');
+            bLoad.onclick = function () {
+              if (!Settings._applySnapshot(s, i)) return;
+              Settings.setActiveSlot(i);
+              var elMenu = document.getElementById('overlay-start-menu');
+              if (elMenu) elMenu.classList.add('hidden');
+              document.body.classList.remove('boot');
+              App.toast(I18n.t('slot.load'));
+              App.enterGame(false);
+            };
+            acts.appendChild(bLoad);
+
+            var bDel = document.createElement('button');
+            bDel.type = 'button';
+            bDel.className = 'btn danger mini';
+            bDel.textContent = I18n.t('start.deleteSlot');
+            bDel.onclick = function () {
+              if (confirm(I18n.t('slot.deleteConfirm') || 'Delete this save slot?')) {
+                var all = Settings._loadSlots();
+                all[i] = null;
+                Settings._writeSlots(all);
+                if (Settings.activeSlot === i) Settings.setActiveSlot(0);
+                Settings.renderStartMenu();
+                App.toast(I18n.t('slot.deleted') || 'Slot deleted');
+              }
+            };
+            acts.appendChild(bDel);
+          } else {
+            var bNew = document.createElement('button');
+            bNew.type = 'button';
+            bNew.className = 'btn primary mini';
+            bNew.textContent = I18n.t('start.newGame');
+            bNew.onclick = function () {
+              Settings.setActiveSlot(i);
+              var elMenu = document.getElementById('overlay-start-menu');
+              if (elMenu) elMenu.classList.add('hidden');
+              if (window.Onboarding) {
+                Onboarding.start(function () {
+                  App.enterGame(true);
+                }, i);
+              }
+            };
+            acts.appendChild(bNew);
+          }
+          item.appendChild(acts);
+          slotWrap.appendChild(item);
+        });
+      }
+
+      var apiWrap = document.getElementById('start-api-form');
+      if (apiWrap) {
+        apiWrap.innerHTML = '';
+        var T = function (k) { return I18n.t(k); };
+
+        /* Language Switcher */
+        App._select(apiWrap, T('settings.lang'), Config.section('app').lang || 'en', [
+          { v: 'zh', t: '简体中文' },
+          { v: 'zh-tw', t: '繁體中文' },
+          { v: 'ja', t: '日本語' },
+          { v: 'en', t: 'English' },
+          { v: 'id', t: 'Bahasa Indonesia' }
+        ], function (v) {
+          Config.set('app.lang', v);
+          I18n.setLang(v);
+          App.applyI18n(document);
+          Settings.renderStartMenu();
+        });
+
+        /* LLM Endpoint */
+        App._field(apiWrap, T('settings.baseUrl'), Config.section('llm').baseUrl,
+          function (v) { Config.set('llm.baseUrl', v); Config.save(); },
+          { hint: T('settings.baseUrl.hint') });
+
+        /* LLM API Key */
+        App._field(apiWrap, T('settings.apiKey'), Config.section('llm').apiKey,
+          function (v) { Config.set('llm.apiKey', v); Config.save(); },
+          { password: true, hint: T('settings.apiKey.hint') });
+
+        /* LLM Model */
+        var models = App._llmModels || [];
+        if (models.length) {
+          var cur = Config.section('llm').model || '';
+          var opts = models.map(function (m) {
+            return { v: m.id, t: m.context ? (m.id + ' · ' + m.context) : m.id };
+          });
+          if (cur && !opts.filter(function (o) { return o.v === cur; }).length) {
+            opts.unshift({ v: cur, t: cur });
+          }
+          App._select(apiWrap, T('settings.model'), cur, opts, function (v) {
+            App._applyPickedModel(v);
+            Config.save();
+          });
+        } else {
+          App._field(apiWrap, T('settings.model'), Config.section('llm').model,
+            function (v) { Config.set('llm.model', v); Config.save(); },
+            { hint: T('settings.model.hint') });
+        }
+
+        /* Buttons Row: Fetch Models + Test LLM */
+        var bRow = document.createElement('div');
+        bRow.className = 'btn-row';
+        var bFetch = document.createElement('button');
+        bFetch.type = 'button';
+        bFetch.className = 'btn';
+        bFetch.textContent = T('settings.fetchModels');
+        bFetch.onclick = function () {
+          App._fetchModels();
+        };
+        bRow.appendChild(bFetch);
+
+        var bTest = document.createElement('button');
+        bTest.type = 'button';
+        bTest.className = 'btn';
+        bTest.textContent = T('start.testLlm');
+        bTest.onclick = function () { Settings._testLlm(); };
+        bRow.appendChild(bTest);
+        apiWrap.appendChild(bRow);
+
+        /* Temperature & Thinking */
+        App._field(apiWrap, T('settings.temp'), Config.section('llm').temperature,
+          function (v) { Config.set('llm.temperature', parseFloat(v) || 0.9); Config.save(); });
+        App._select(apiWrap, T('settings.thinking'), Config.section('llm').thinking || 'auto', [
+          { v: 'auto', t: T('settings.thinking.auto') },
+          { v: 'off', t: T('settings.thinking.off') },
+          { v: 'on', t: T('settings.thinking.on') }
+        ], function (v) { Config.set('llm.thinking', v); Config.save(); });
+      }
+
+      /* Wire back button */
+      var btnBack = document.getElementById('btn-start-back');
+      if (btnBack) {
+        btnBack.onclick = function () { Settings.closeStartMenu(); };
+      }
     }
   };
 
