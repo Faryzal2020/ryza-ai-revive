@@ -337,12 +337,12 @@
       L.push('tod: 時を進めるなら mor|aft|eve|ngt か +N時間。');
     }
     if (hasRpg) {
-      L.push('毎ターン末尾に <state> を付ける。trust_delta は必ず入れる（変化なしなら 0）。他の欄は動いたときだけ：');
-      L.push('<state>{"stamina_delta":-2,"exp_delta":10,"money_delta":50,"inventory_added":[{"id":"emeralia","count":1}],"quest":{"step_add":1},"trust_delta":2,"trust_reason":"helped","request_tier":0,"granted":false,"learned":["name"]}</state>');
-      L.push('key: stamina_delta exp_delta money_delta inventory_added|removed ryza_inventory_* memory_add quest{step_add,complete} trust_delta trust_reason request_tier(0-7) granted learned[name|background|hobby|interest|futureGoals|personality|origin]');
+      L.push('毎ターン末尾に <state> を付ける。trust_delta は必ず入れる（変化なしなら 0）。他の欄は実際に動いたときだけ書く。例をそのまま写さない：');
+      L.push('<state>{"trust_delta":0,"trust_reason":"","request_tier":0,"granted":false}</state>');
+      L.push('使える欄: stamina_delta exp_delta money_delta inventory_added|removed（[{"id":"emeralia","count":1}] の形） ryza_inventory_* memory_add quest{step_add,complete} trust_delta trust_reason request_tier(0-7) granted learned[name|background|hobby|interest|futureGoals|personality|origin]');
     } else {
       L.push('毎ターン末尾に <state> を付ける。trust_delta は必ず入れる（変化なしなら 0）。相手が名前や事情を明かしたら learned も：');
-      L.push('<state>{"trust_delta":1,"trust_reason":"honest","request_tier":0,"granted":false,"learned":["name"]}</state>');
+      L.push('<state>{"trust_delta":0,"trust_reason":"","request_tier":0,"granted":false}</state>');
     }
     return L.join('\n');
   }
@@ -457,6 +457,8 @@
     /* a lone "]" or "[" line the model leaves behind after the tag line */
     body = body.replace(/^\s*[\[\]]\s*(?:\n|$)/, '');
     body = body.replace(/^<think\b[^>]*>[\s\S]*?(?:<\/think>|$)\s*/i, '');
+    /* an orphan closing tag: everything before it was thinking */
+    if (/<\/think>/i.test(body)) body = body.slice(body.search(/<\/think>/i)).replace(/^<\/think>\s*/i, '');
     body = body.replace(/^<reasoning\b[^>]*>[\s\S]*?(?:<\/reasoning>|$)\s*/i, '');
     var n = 0;
     while (n++ < 3 && body.charAt(0) === '[') {
@@ -1298,6 +1300,13 @@
       return body;
     }
     if (style === 'openrouter') {
+      /* "off" must actually switch reasoning off: on models that think by
+         default (GLM, Nemotron, R1) the whole completion budget goes to
+         hidden reasoning otherwise and the content comes back empty. */
+      if (wanted === 'off' || normalizeEffort(mapped) === 'off') {
+        body.reasoning = { enabled: false };
+        return body;
+      }
       if (mapped) body.reasoning = { effort: mapped };
       return body;
     }

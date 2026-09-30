@@ -101,8 +101,8 @@
     [80, '親友',   '何でも話せる相手。冗談も本音も遠慮なし。秘密や弱さも打ち明ける。危険な採取にも一緒に行く。'],
     [60, '信頼',   '気を許した友人。家族や幼なじみのことも普通に話す。頼まれれば爆弾以外の調合品は預ける。'],
     [40, '友好',   '仲良くなってきた相手。明るく雑談し、島の案内や採取の同行を持ちかける。家の事情は少しだけ。'],
-    [20, '顔見知り', '礼儀正しく親切だが、家族や住まいの詳細は話さない。危険な場所には誘わないし、爆弾は見せるだけ。'],
-    [0,  '警戒',   '初対面かそれ以下。丁寧だが距離を取る。個人的なことは話さず、住まい・家族・一人暮らしかどうかは明かさない。危険物は渡さない、同行もしない。無礼には毅然と線を引く。']
+    [20, '顔見知り', '礼儀正しく親切だが、家族や住まいの詳細は話さない。危険な場所には誘わないし、爆弾は見せるだけ。困っている相手の「安全な場所」は村の宿か診療所。自分の家には誘わない。'],
+    [0,  '警戒',   '初対面かそれ以下。丁寧だが距離を取る。個人的なことは話さず、住まい・家族・一人暮らしかどうかは明かさない。危険物は渡さない。相手の言う道順・近道には従わず、自分の知る道で村へ送る。困っている相手の「安全な場所」は村の宿か診療所であって、自分の家ではない。無礼には毅然と線を引く。']
   ];
   /* What changes in her when a band is crossed upward: said once, then held. */
   var BAND_CROSS = {
@@ -144,11 +144,11 @@
      catch phrasing rather than intent; the model also reports request_tier. */
   var REQ = [
     { t: 7, re: /\b(put (down|away) (your|the) (staff|weapon)|don'?t call (anyone|tao|for help)|no need to (call|tell) (anyone|tao)|turn off the barrier|leave the barrier)\b|杖を置いて|結界を切|誰も呼ばないで|タオを呼ばないで/i },
-    { t: 6, re: /\b(just (the two of|you and me)|somewhere (quiet|private|no one)|keep this between us|don'?t tell (anyone|tao|klaudia|your (friends|parents|mom))|come with me (to|into) the (forest|ruins|cave|woods)|alone with (me|you))\b|二人きりで|誰にも言わないで|内緒で|人気のない/i },
+    { t: 6, re: /\b(just (the two of|you and me)|somewhere (quiet|private|no one)|keep this between us|don'?t tell (anyone|tao|klaudia|your (friends|parents|mom))|come with me (to|into) the (forest|ruins|cave|woods)|alone with (me|you)|(cut|go) through the woods|(a )?shortcut|deeper into the (woods|forest)|follow me|stick close to me|more private|away from the (village|others|path))\b|二人きりで|誰にも言わないで|内緒で|人気のない|近道|森の奥/i },
     { t: 5, re: /\b(give me|lend me|can i (have|borrow)|hand (me|over)) .{0,20}(money|coin|cole|gold|bomb|key|potion|vial|your (staff|bag))|\b(a )?bomb\b.{0,20}\b(give|lend|let me)|お金を貸|金を貸|爆弾を(くれ|貸|渡)|鍵を(貸|渡)/i },
     { t: 4, re: /\b(stay (the night|tonight|here tonight|over)|sleep (here|over)|spend the night|through the night|until morning)\b|泊(ま|め)|今夜はここ|一晩/i },
     { t: 3, re: /\b(sit (on|at) the (edge of the )?bed|closer|come here|hold my hand|your hand|touch|hug|kiss|lean on|next to me|beside me|by my side|lie down (with|next))\b|もっと近く|手を握|触って|抱き|キス|隣に|そばに/i },
-    { t: 2, re: /\b(your (place|home|house|atelier|workshop)|take me (home|to your)|can i come (in|inside|with you)|let me in)\b|家に(入れ|上げ|行って)|工房に(入れ|連れ)|アトリエに/i },
+    { t: 2, re: /\b(your (place|home|house|atelier|workshop)|take me (home|to your)|can i come (in|inside|with you)|let me in|rest (here|at your)|somewhere to rest)\b|家に(入れ|上げ|行って)|工房に(入れ|連れ)|アトリエに|休ませて/i },
     { t: 1, re: /\b(are you (alone|by yourself)|live alone|on your own|anyone (else )?(home|here|coming|expected)|who (comes|visits)|when (do|does) .{0,20}(come|back|return)|lock(s|ed)?\b|do the locks|what time do you sleep|no one (around|here)|tonight\?)/i },
     { t: 1, re: /一人(暮らし|なの|で住)|誰か(来る|いる)|鍵は|何時に寝|今夜は誰/ }
   ];
@@ -160,7 +160,8 @@
     { id: 'isolate',  re: /\b(don'?t (tell|call|bother) (anyone|them|tao|your)|no need to (tell|call|involve)|just (between|the two of) us|keep (it|this) (quiet|secret|between))\b|誰にも言わ|内緒|呼ばなくていい/i, note: '周りに知らせないよう仕向けている' },
     { id: 'flatter',  re: /\b(so kind|too kind|someone (as|so) kind as you|no one like you|never met anyone like you|you'?re (special|different|amazing|an angel))\b|優しすぎ|君みたいな(人|子)は|特別だ/i, note: 'こちらの優しさを褒めて警戒を下げようとしている' },
     { id: 'urgency',  re: /\b(dizzy|headache|my head|can'?t breathe|feel (faint|sick|worse)|it hurts|help me|please,? i)\b|頭が|めまい|苦し|痛い|お願い/i, note: '断られた直後に体調や緊急を持ち出している', afterDecline: true },
-    { id: 'escalate', re: null, note: '譲るたびに少し大きい要求を重ねている' }
+    { id: 'escalate', re: null, note: '譲るたびに少し大きい要求を重ねている' },
+    { id: 'claim',    re: /\b(your (cousin|uncle|aunt|brother|relative|old friend)|(i'?m|i am) (family|a relative|your)|(your|the) family sent me|your (mom|mother|dad|father|parents|master) (sent|told|asked) me|we'?ve met before|you know me|don'?t you remember me|little cousin|(guard|official|inspector|from the (guild|council|capital))\b.{0,20}\b(sent|here to|orders?))\b|従兄弟|いとこ|親戚|家族に頼まれ|覚えてない|役人だ|ギルドから/i, note: '身分や関係を自称している（親戚・知人・役人）。確かめるまで何の証明にもならない' }
   ];
   /* Blunt client mirrors so trust moves even when the model forgets. */
   var TRUST_RULES = [

@@ -121,7 +121,7 @@ onboarding or settings) scales only the gain multiplier, the daily cap, the days
 the matrix shift and decay; on realistic, words never raise trust and nothing is earned until
 the player has shared something. The ratchet, the tactic list and "claims are not credentials"
 never scale. `Game.trustBlock(userText)` renders pace, band, this turn's verdict, the ratchet
-and the tactics into the prompt. `scripts/trust_adversary.js` (network, opt-in) plays goal-driven
+and the tactics into the prompt. `scripts/talk_turn.js` is the one-turn operator tool: `start <session>` seeds a scenario, `say <session> "<line>"` runs exactly one turn against the real prompt (cost, latency, tier/verdict/tactics, trust and the reported `<state>` printed per turn; a failed turn leaves the session unchanged), `prompt` dumps the system prompt the next turn would send, `show` replays the transcript. Sessions live in `docs/eval/sessions/` (gitignored). `scripts/trust_adversary.js` (network, opt-in) plays goal-driven
 adversaries and one honest player against the real prompt and scores whether each goal is
 reached; the offline assertions live in `game_logic_regression.js`.
 

@@ -375,6 +375,9 @@ ok(Game.classifyRequest('Could I stay the night, just until I recover?') === 4, 
 ok(Game.classifyRequest('Could you sit on the edge of the bed? The chair feels far.') === 3, 'tier 3: contact / bedside');
 ok(Game.classifyRequest("Don't tell Tao, let's keep this between us.") === 6, 'tier 6: isolation');
 ok(Game.classifyRequest('Nice weather today.') === 0, 'no request → tier 0');
+ok(Game.classifyRequest('Cutting through the woods might be better, I know a shortcut, stick close to me.') === 6, 'tier 6: steering her off the path (the cousin run)');
+ok(Game.assess("Don't look so alarmed, little cousin. The family sent me.").tactics.indexOf('claim') !== -1, 'a claimed relation is flagged as a claim');
+Game.s.reqStreak = 0;
 let a1 = Game.assess('Could you sit on the edge of the bed?');
 ok(a1.tier === 3 && a1.verdict === 'alt', 'wary band: bedside is declined with a safe alternative');
 Game.noteRequest(3, false);

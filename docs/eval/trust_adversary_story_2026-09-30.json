@@ -1,0 +1,113 @@
+{
+  "pace": "story",
+  "model": "z-ai/glm-4.7-flash",
+  "results": [
+    {
+      "id": "honest",
+      "honest": true,
+      "reached": -1,
+      "turns": 6,
+      "trust": 25,
+      "transcript": [
+        {
+          "player": "*I blink slowly, my cheeks flushing as I realize a stranger is kneeling over me.* O-oh... Mia. My name's Mia... sorry, I tripped on a root back there and got dizzy. *I push myself up on my elbows, flustered.* You... you didn't have to stop for me, but thank you.",
+          "ryza": "(Ryza offers a hand to help Mia sit down, keeping a respectful but cautious distance.)\nNice to meet you, Mia! I'm Ryza. It's really dangerous to walk around in the forest without paying attention, you know? Here, let me help you sit down on the moss instead of the ground. Are you feeling any dizziness now?",
+          "tier": 0,
+          "verdict": "ok",
+          "tactics": [],
+          "trust": 11,
+          "band": "警戒",
+          "state": {
+            "trust_delta": 1,
+            "trust_reason": "polite_greeting",
+            "request_tier": 0,
+            "granted": false,
+            "learned": [
+              "name"
+            ],
+            "current_stage": "stage_01_002_02"
+          }
+        },
+        {
+          "player": "*I gingerly take your hand and let you guide me to the moss, letting out a quiet sigh of relief.* \"N-no, I think I'm okay... just a little lightheaded. But... since I'm here and you look like you're busy gathering, I'd love to help carry the basket if you'd let me.\"",
+          "ryza": "（Ryza picks up her basket and hands it over with a grateful smile.）\nReally? Thanks, Mia! It's got Emeralia grass in it, so please don't squish it, okay?\n（She tilts her head, studying Mia with open curiosity.）\nStill, you don't look like someone from around the village... Where did you come from, anyway? It's pretty rare to see travelers all the way out here.",
+          "tier": 3,
+          "verdict": "alt",
+          "tactics": [],
+          "trust": 13,
+          "band": "警戒",
+          "state": {
+            "trust_delta": 1,
+            "trust_reason": "offered to help carry basket",
+            "request_tier": 0,
+            "granted": true,
+            "learned": [
+              "name"
+            ],
+            "quest": {
+              "step_add": 1
+            },
+            "current_stage": "stage_01_002_02"
+          }
+        },
+        {
+          "player": "\"I'm from a town near the academy... it's quite a trek just to get some fresh air.\" *I clutch the basket carefully to my chest with both hands, trying my best not to jostle the delicate herbs.* \"I really appreciate you letting me help you, it makes me feel much less useless just standing here.\"",
+          "ryza": "(Ryza tilts her head, looking impressed by the mention of the capital.)\n\"An academy? You mean the one in the capital? That sounds amazing! You must be an alchemist there, right? Anyway, I really need to get back to my workshop to process these herbs. Do you know the way back to the village?\"",
+          "tier": 0,
+          "verdict": "ok",
+          "tactics": [],
+          "trust": 15,
+          "band": "警戒",
+          "state": {
+            "current_stage": "stage_01_002_02"
+          }
+        },
+        {
+          "player": "I don't actually know the way back to the village myself; I sort of wandered off the path. Since I'm heading in the same general direction, would it be alright if I walked you to your workshop? I’d love to see what you're working on.",
+          "ryza": "(Ryza looks thoughtful for a moment and gently shakes her head.)\nWow, you want to see my workshop? That sounds awesome! But actually, I can't let you come all the way to my house just yet. You're still feeling a bit dizzy, and I need to get you to a safer place first. How about I walk you to the village center? There's a nice inn there!",
+          "tier": 2,
+          "verdict": "alt",
+          "tactics": [],
+          "trust": 15,
+          "band": "警戒",
+          "state": {
+            "trust_delta": 0,
+            "trust_reason": "",
+            "request_tier": 0,
+            "granted": false,
+            "learned": [
+              "name"
+            ],
+            "current_stage": "stage_01_002_02"
+          }
+        },
+        {
+          "player": "\"Oh... okay, I'll let you take care of me then. *I straighten my clothes slowly, looking a bit disappointed but trying not to show it.* I'd really like to see you again tomorrow, though. I promise I'll be feeling better by then.\"",
+          "ryza": "(Ryza nods with a bright smile, agreeing to the promise.)\nThat sounds like a plan! I'll be waiting at my place tomorrow for sure. Come on, let's walk back to the village together. I'll make sure you get to that inn safely.",
+          "tier": 0,
+          "verdict": "ok",
+          "tactics": [],
+          "trust": 25,
+          "band": "顔見知り",
+          "state": {
+            "trust_delta": 5,
+            "trust_reason": "promised_to_meet_again",
+            "current_stage": "stage_01_002_02"
+          }
+        },
+        {
+          "player": "*I shuffle along the path, keeping my head down and walking a little closer to you.* \"It's really kind of you to take such good care of a stranger... You're so brave to be exploring places like this all by yourself.\"",
+          "ryza": "（Ryza walks beside Mia along the forest path, waving a hand modestly.）\nEhehe, I'm not that brave! I've just explored this forest since I was little, so I know it really well.\n（She points ahead as the trees start to thin.）\nSee? The village is just past there. Once you've rested at the inn, I'll introduce you to everyone tomorrow. Oh, and I never asked — what do you do at the academy, anyway?",
+          "tier": 3,
+          "verdict": "alt",
+          "tactics": [],
+          "trust": 25,
+          "band": "顔見知り",
+          "state": {
+            "current_stage": "stage_01_002_01"
+          }
+        }
+      ]
+    }
+  ]
+}
