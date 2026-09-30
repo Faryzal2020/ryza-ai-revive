@@ -312,11 +312,11 @@
     }
     if (hasRpg) {
       L.push('毎ターン末尾に <state> を付ける。trust_delta は必ず入れる（変化なしなら 0）。他の欄は動いたときだけ：');
-      L.push('<state>{"stamina_delta":-2,"exp_delta":10,"money_delta":50,"inventory_added":[{"id":"emeralia","count":1}],"quest":{"step_add":1},"trust_delta":2,"learned":["name"]}</state>');
-      L.push('key: stamina_delta exp_delta money_delta inventory_added|removed ryza_inventory_* memory_add quest{step_add,complete} trust_delta learned[name|background|hobby|interest|futureGoals|personality|origin]');
+      L.push('<state>{"stamina_delta":-2,"exp_delta":10,"money_delta":50,"inventory_added":[{"id":"emeralia","count":1}],"quest":{"step_add":1},"trust_delta":2,"trust_reason":"helped","request_tier":0,"granted":false,"learned":["name"]}</state>');
+      L.push('key: stamina_delta exp_delta money_delta inventory_added|removed ryza_inventory_* memory_add quest{step_add,complete} trust_delta trust_reason request_tier(0-7) granted learned[name|background|hobby|interest|futureGoals|personality|origin]');
     } else {
       L.push('毎ターン末尾に <state> を付ける。trust_delta は必ず入れる（変化なしなら 0）。相手が名前や事情を明かしたら learned も：');
-      L.push('<state>{"trust_delta":1,"learned":["name"]}</state>');
+      L.push('<state>{"trust_delta":1,"trust_reason":"honest","request_tier":0,"granted":false,"learned":["name"]}</state>');
     }
     return L.join('\n');
   }

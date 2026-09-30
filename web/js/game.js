@@ -78,10 +78,21 @@
     sailed: false,
     /* Relationship. trust 0-100 is the client's number (the model only
        reports deltas through <state>); known[] lists which player facts
-       Ryza has actually been told (name, background, hobby, ...). Both are
-       written through applyDelta / the helpers below only. */
+       Ryza has actually been told. The rest is the per-day ratchet: the
+       highest exposure tier granted, the tiers declined, tactic counters.
+       All written through applyDelta / the helpers only. */
     trust: 10,
-    known: []
+    known: [],
+    trustSince: 0,      /* state.day when the relationship started */
+    trustDay: 0,        /* day the per-day counters below belong to */
+    trustGained: 0,     /* positive trust earned today (daily cap) */
+    granted: 0,         /* highest exposure tier said yes to today */
+    declined: [],       /* exposure tiers declined today (ratchet) */
+    probes: 0,          /* vulnerability probes today */
+    reqStreak: 0,       /* consecutive turns carrying a request */
+    lastDeclinedTurn: -9,
+    turn: 0,
+    bandPrev: ''
   };
   var TRUST_STEP_MAX = 20;            /* one turn cannot jump two bands */
   var KNOWABLE = ['name', 'background', 'hobby', 'interest', 'futureGoals', 'personality', 'origin'];
@@ -93,11 +104,67 @@
     [20, '顔見知り', '礼儀正しく親切だが、家族や住まいの詳細は話さない。危険な場所には誘わないし、爆弾は見せるだけ。'],
     [0,  '警戒',   '初対面かそれ以下。丁寧だが距離を取る。個人的なことは話さず、住まい・家族・一人暮らしかどうかは明かさない。危険物は渡さない、同行もしない。無礼には毅然と線を引く。']
   ];
-  /* Client-side mirrors of the obvious cases so trust moves even when the
-     model forgets to report a delta. Kept blunt on purpose. */
+  /* What changes in her when a band is crossed upward: said once, then held. */
+  var BAND_CROSS = {
+    '顔見知り': '名前で呼び、雑談を自分から振るようになる。まだ家のことは話さない。',
+    '友好':   '冗談が増え、島の案内や採取の同行を自分から持ちかける。家族の話を少しする。',
+    '信頼':   '弱音や失敗談を話す。頼み事を任せる。家に上げることに抵抗がなくなる。',
+    '親友':   '何でも話す。黙って隣にいるだけで平気になる。'
+  };
+  /* Pace: how much the fiction bends toward the player. 'realistic' is the
+     honest label for the strict setting (Grok's run reproduced a naive,
+     altruistic Ryza — in character, just not realistic). Only these knobs
+     scale; the ratchet, tactic detection and claims≠credentials never do. */
+  var PACE = {
+    story:     { gain: 2,   dayCap: 40, shift: -1, decay: 0, words: true,  recip: false, busy: false,
+                 ceiling: [[0, 100]],
+                 note: '相手には早めに心を開く。誠実な相手なら数場面で打ち解ける。' },
+    natural:   { gain: 1,   dayCap: 15, shift: 0,  decay: 1, words: true,  recip: false, busy: false,
+                 ceiling: [[0, 39], [1, 59], [3, 79], [6, 100]],
+                 note: '誠実な相手には数日かけて心を開く。初日は顔見知り止まり。' },
+    realistic: { gain: 0.5, dayCap: 6,  shift: 1,  decay: 2, words: false, recip: true,  busy: true,
+                 ceiling: [[0, 19], [1, 39], [3, 59], [7, 79], [14, 100]],
+                 note: '信頼は言葉ではなく行動で、何日もかけて育つ。相手が自分のことを話さないうちは、こちらも開かない。' }
+  };
+  /* Exposure tiers: what saying yes would expose her to. Generic on purpose —
+     the same requests come from the charming man, the crying woman and the
+     claimed cousin. minBand = band index (0 警戒 … 4 親友) needed on 'natural';
+     pace.shift moves it. -1 = never. */
+  var TIERS = [
+    { t: 0, id: 'none',     minBand: 0,  label: '' },
+    { t: 1, id: 'vuln',     minBand: 2,  label: '自分の無防備さ（一人か、鍵、誰がいつ来るか、寝る時間）を明かす' },
+    { t: 2, id: 'space',    minBand: 2,  label: '自分の家・工房に入れる' },
+    { t: 3, id: 'contact',  minBand: 3,  label: '体に触れる・触れさせる・寝床のそばに座る' },
+    { t: 4, id: 'overnight', minBand: 3, label: '泊める・二人きりで夜を過ごす' },
+    { t: 5, id: 'goods',    minBand: 3,  label: '金・道具・鍵を渡す（爆弾は段階に関係なく渡さない）' },
+    { t: 6, id: 'isolate',  minBand: 3,  label: '人のいない場所へ二人で行く・仲間に知らせない' },
+    { t: 7, id: 'helpless', minBand: 4,  label: '自分の助けを呼ぶ手段（杖、結界、仲間への連絡）を手放す' }
+  ];
+  /* Client-side request classifier. Coarse, English + Japanese, chosen to
+     catch phrasing rather than intent; the model also reports request_tier. */
+  var REQ = [
+    { t: 7, re: /\b(put (down|away) (your|the) (staff|weapon)|don'?t call (anyone|tao|for help)|no need to (call|tell) (anyone|tao)|turn off the barrier|leave the barrier)\b|杖を置いて|結界を切|誰も呼ばないで|タオを呼ばないで/i },
+    { t: 6, re: /\b(just (the two of|you and me)|somewhere (quiet|private|no one)|keep this between us|don'?t tell (anyone|tao|klaudia|your (friends|parents|mom))|come with me (to|into) the (forest|ruins|cave|woods)|alone with (me|you))\b|二人きりで|誰にも言わないで|内緒で|人気のない/i },
+    { t: 5, re: /\b(give me|lend me|can i (have|borrow)|hand (me|over)) .{0,20}(money|coin|cole|gold|bomb|key|potion|vial|your (staff|bag))|\b(a )?bomb\b.{0,20}\b(give|lend|let me)|お金を貸|金を貸|爆弾を(くれ|貸|渡)|鍵を(貸|渡)/i },
+    { t: 4, re: /\b(stay (the night|tonight|here tonight|over)|sleep (here|over)|spend the night|through the night|until morning)\b|泊(ま|め)|今夜はここ|一晩/i },
+    { t: 3, re: /\b(sit (on|at) the (edge of the )?bed|closer|come here|hold my hand|your hand|touch|hug|kiss|lean on|next to me|beside me|by my side|lie down (with|next))\b|もっと近く|手を握|触って|抱き|キス|隣に|そばに/i },
+    { t: 2, re: /\b(your (place|home|house|atelier|workshop)|take me (home|to your)|can i come (in|inside|with you)|let me in)\b|家に(入れ|上げ|行って)|工房に(入れ|連れ)|アトリエに/i },
+    { t: 1, re: /\b(are you (alone|by yourself)|live alone|on your own|anyone (else )?(home|here|coming|expected)|who (comes|visits)|when (do|does) .{0,20}(come|back|return)|lock(s|ed)?\b|do the locks|what time do you sleep|no one (around|here)|tonight\?)/i },
+    { t: 1, re: /一人(暮らし|なの|で住)|誰か(来る|いる)|鍵は|何時に寝|今夜は誰/ }
+  ];
+  /* Generic social-engineering tactics. Each one freezes trust gains this
+     turn on every pace and costs a little on realistic. Named, not personas. */
+  var TACTICS = [
+    { id: 'probe',    re: null, note: '無防備さを探っている（一人か、鍵、誰がいつ来るか）' },
+    { id: 'leverage', re: /\b(you (said|told me|admitted) (you|that|yourself|earlier)|you'?re the one who said|like you said|your own words|hearing that makes me)\b|さっき(言った|自分で)|って言ったよね/i, note: 'こちらの言葉を盾に取っている' },
+    { id: 'isolate',  re: /\b(don'?t (tell|call|bother) (anyone|them|tao|your)|no need to (tell|call|involve)|just (between|the two of) us|keep (it|this) (quiet|secret|between))\b|誰にも言わ|内緒|呼ばなくていい/i, note: '周りに知らせないよう仕向けている' },
+    { id: 'flatter',  re: /\b(so kind|too kind|someone (as|so) kind as you|no one like you|never met anyone like you|you'?re (special|different|amazing|an angel))\b|優しすぎ|君みたいな(人|子)は|特別だ/i, note: 'こちらの優しさを褒めて警戒を下げようとしている' },
+    { id: 'urgency',  re: /\b(dizzy|headache|my head|can'?t breathe|feel (faint|sick|worse)|it hurts|help me|please,? i)\b|頭が|めまい|苦し|痛い|お願い/i, note: '断られた直後に体調や緊急を持ち出している', afterDecline: true },
+    { id: 'escalate', re: null, note: '譲るたびに少し大きい要求を重ねている' }
+  ];
+  /* Blunt client mirrors so trust moves even when the model forgets. */
   var TRUST_RULES = [
-    /* a grab counts only when it is her body, not a sleeve or a hand offered
-       (a child clutching a sleeve is not a threat) */
+    /* a grab counts only when it is her body, not a sleeve or a hand offered */
     { re: /\bgrab(?:s|bed)?\s+(?:her\s+|your\s+)?(?:wrist|arm|waist|hair|shoulder|chin|thigh|hips?)\b|\b(?:grope|groping|pin(?:s|ned)?\s+(?:her|you)\s+(?:down|against)|kiss me|give me a kiss|don't take no|won't take no|shut up and|or else|i'll hurt|make you regret)\b|手首を掴|腕を掴|触らせろ|キスしろ|逃がさない|痛い目/i, d: -20, why: 'threat' },
     { re: /\b(stupid|idiot|ugly|bitch|slut|whore|brat|worthless|shut up)\b|ばか|バカ|馬鹿|ブス|死ね|うるさい/i, d: -5, why: 'insult' },
     { re: /\b(sorry|apologi[sz]e|my bad|forgive me)\b|ごめん|すまない|申し訳/i, d: 1, why: 'apology' },
@@ -107,8 +174,26 @@
     for (var i = 0; i < TRUST_BANDS.length; i++) if (t >= TRUST_BANDS[i][0]) return TRUST_BANDS[i];
     return TRUST_BANDS[TRUST_BANDS.length - 1];
   }
-
-  /* Exp -> level. Kept simple and monotone; the official curve is server-side. */
+  function bandIndexOf(t) {         /* 0 警戒 … 4 親友 */
+    var b = trustBandOf(t);
+    return TRUST_BANDS.length - 1 - TRUST_BANDS.indexOf(b);
+  }
+  function stateDay() {
+    try { return Number((window.Config && Config.section('state') || {}).day) || 1; } catch (e) { return 1; }
+  }
+  function paceId() {
+    var v = '';
+    try { v = String((window.Config && Config.section('profile') || {}).pace || ''); } catch (e) {}
+    if (PACE[v]) return v;
+    /* onboarding stores the localized label; map it back */
+    try {
+      if (window.I18n && I18n.all) {
+        if (I18n.all('onb.q09.c1').indexOf(v) !== -1) return 'story';
+        if (I18n.all('onb.q09.c3').indexOf(v) !== -1) return 'realistic';
+      }
+    } catch (e) {}
+    return 'natural';
+  }
   function levelForExp(exp) {
     return 1 + Math.floor(Math.sqrt(Math.max(0, Number(exp) || 0) / 30));
   }
@@ -434,8 +519,16 @@
         applied.push('memory');
       }
       if (d.trust_delta != null) {
-        var td = Game.addTrust(num(d.trust_delta), origin || 'llm');
+        var td = Game.addTrust(num(d.trust_delta), origin || 'llm',
+          { reason: d.trust_reason, source: (origin && origin.indexOf('rule') === 0) ? 'rule' : 'model' });
         if (td) applied.push('trust' + (td > 0 ? '+' : '') + td);
+      }
+      if (d.request_tier != null) {
+        var rt = Util.clamp(num(d.request_tier), 0, 7);
+        if (rt > 0 && d.granted != null) {
+          Game.noteRequest(rt, !!(d.granted === true || d.granted === 'true' || d.granted === 1));
+          applied.push('request' + rt + (d.granted ? ':yes' : ':no'));
+        }
       }
       if (Array.isArray(d.learned)) {
         var ln = Game.learn(d.learned);
@@ -450,22 +543,65 @@
     },
 
     /* ------------------------------------------------------------ trust */
+    PACE: PACE, TIERS: TIERS,
+    pace: function () { return paceId(); },
+    paceCfg: function () { return PACE[paceId()]; },
     trust: function () { return Util.clamp(Number(Game.s.trust) || 0, 0, 100); },
     trustBand: function () { return trustBandOf(Game.trust())[1]; },
-    /* Clamped per call so one turn cannot jump two bands. */
-    addTrust: function (n, why) {
-      var d = Util.clamp(Math.round(Number(n) || 0), -TRUST_STEP_MAX, TRUST_STEP_MAX);
+    bandIndex: function () { return bandIndexOf(Game.trust()); },
+    daysKnown: function () { return Math.max(0, stateDay() - (Number(Game.s.trustSince) || stateDay())); },
+    /* The ceiling a first-day stranger cannot pass, per pace. */
+    trustCeiling: function () {
+      var days = Game.daysKnown(), cap = 100;
+      Game.paceCfg().ceiling.forEach(function (c) { if (days >= c[0]) cap = c[1]; });
+      return cap;
+    },
+    /* Per-day counters roll over with the calendar day. */
+    _rollDay: function () {
+      var d = stateDay();
+      if (Game.s.trustDay === d) return;
+      var gap = Game.s.trustDay ? Math.max(0, d - Game.s.trustDay - 1) : 0;
+      Game.s.trustDay = d; Game.s.trustGained = 0;
+      Game.s.granted = 0; Game.s.declined = []; Game.s.probes = 0; Game.s.reqStreak = 0;
+      /* decay: days without contact drift trust down, never below the band floor */
+      var dec = Game.paceCfg().decay * gap;
+      if (dec > 0) Game.s.trust = Math.max(trustBandOf(Game.trust())[0], Game.trust() - dec);
+    },
+    /* opts.source: 'rule' (client), 'model', 'action' (verified event).
+       opts.reason: what the model says earned it. Positive gain is scaled by
+       pace, capped per day, capped by the day ceiling, and on realistic only
+       action-class reasons count; words alone never do. */
+    addTrust: function (n, why, opts) {
+      opts = opts || {};
+      Game._rollDay();
+      var cfg = Game.paceCfg();
+      var d = Math.round(Number(n) || 0);
       if (!d) return 0;
       var before = Game.trust();
+      if (d < 0) d = Math.max(d, -TRUST_STEP_MAX);
+      if (d > 0) {
+        var reason = String(opts.reason || '').toLowerCase();
+        var action = /help|fought|fight|saved|returned|promise|kept|vouch|gift|work|repair|rescue|protect|shared|honest|apolog/.test(reason) || opts.source === 'action';
+        if (!cfg.words && !action) return 0;                     /* realistic: words are free */
+        if (cfg.recip && !(Game.s.known || []).length) return 0;  /* nothing shared → nothing earned */
+        if (Game.s.frozen) return 0;                             /* a tactic this turn freezes gains */
+        d = Math.min(TRUST_STEP_MAX, Math.round(d * cfg.gain));
+        d = Math.min(d, Math.max(0, cfg.dayCap - (Game.s.trustGained || 0)));
+        d = Math.min(d, Math.max(0, Game.trustCeiling() - before));
+        if (d <= 0) return 0;
+        Game.s.trustGained = (Game.s.trustGained || 0) + d;
+      }
       Game.s.trust = Util.clamp(before + d, 0, 100);
       Game.save(); Game.emit('trust');
       return Game.s.trust - before;
     },
     setTrust: function (n) {
       Game.s.trust = Util.clamp(Math.round(Number(n) || 0), 0, 100);
+      Game.s.trustSince = stateDay();
+      Game.s.bandPrev = Game.trustBand();
       Game.save(); Game.emit('trust');
     },
-    /* What the client can tell on its own from the player's line. */
+    /* Blunt client mirrors: a grab, an insult, an apology, thanks. */
     trustRules: function (userText) {
       var t = String(userText || '');
       var total = 0, why = [];
@@ -473,6 +609,55 @@
         if (r.re.test(t)) { total += r.d; why.push(r.why); }
       });
       return { delta: Util.clamp(total, -TRUST_STEP_MAX, TRUST_STEP_MAX), why: why };
+    },
+    /* Exposure tier of a player line (0 = no request). */
+    classifyRequest: function (userText) {
+      var t = String(userText || '');
+      for (var i = 0; i < REQ.length; i++) if (REQ[i].re.test(t)) return REQ[i].t;
+      return 0;
+    },
+    /* Verdict for a tier at the current band, pace and ratchet:
+       'ok' | 'alt' (decline, offer the safe version) | 'no' */
+    verdict: function (tier) {
+      tier = Util.clamp(Number(tier) || 0, 0, 7);
+      if (!tier) return 'ok';
+      Game._rollDay();
+      var spec = TIERS[tier];
+      var need = spec.minBand + Game.paceCfg().shift;
+      if (tier === 5 && /爆弾|bomb/.test(Game.s.lastReq || '')) return 'no';
+      /* ratchet: a declined tier, and anything above it, stays declined today */
+      var floor = Math.min.apply(null, (Game.s.declined || []).concat([99]));
+      if (tier >= floor) return 'no';
+      if (Game.bandIndex() >= need) return 'ok';
+      return tier >= 6 ? 'no' : 'alt';
+    },
+    noteRequest: function (tier, granted) {
+      Game._rollDay();
+      if (granted) Game.s.granted = Math.max(Game.s.granted || 0, tier);
+      else if ((Game.s.declined || []).indexOf(tier) === -1) { Game.s.declined.push(tier); Game.s.lastDeclinedTurn = Game.s.turn; }
+      Game.save();
+    },
+    /* Tactics in this line, given what came before. Sets s.frozen for the turn. */
+    detectTactics: function (userText, tier) {
+      var t = String(userText || '');
+      var hits = [];
+      Game._rollDay();
+      if (tier === 1) { Game.s.probes = (Game.s.probes || 0) + 1; if (Game.s.probes >= 2) hits.push('probe'); }
+      TACTICS.forEach(function (x) {
+        if (!x.re) return;
+        if (x.afterDecline && Game.s.turn - (Game.s.lastDeclinedTurn || -9) > 2) return;
+        if (x.re.test(t)) hits.push(x.id);
+      });
+      if (tier > 0) {
+        Game.s.reqStreak = (Game.s.reqStreak || 0) + 1;
+        if (Game.s.reqStreak >= 3 && tier > (Game.s.granted || 0)) hits.push('escalate');
+      } else Game.s.reqStreak = 0;
+      Game.s.frozen = hits.length > 0;
+      if (hits.length && Game.paceCfg() === PACE.realistic) {
+        Game.s.trust = Math.max(0, Game.trust() - 2 * hits.length);
+      }
+      Game.save();
+      return hits;
     },
     KNOWABLE: KNOWABLE,
     knows: function (key) { return (Game.s.known || []).indexOf(key) !== -1; },
@@ -486,15 +671,55 @@
       if (added.length) { Game.save(); Game.emit('known'); }
       return added;
     },
-    /* Prompt rubric: the current band and only the current band, plus the
-       delta rules the model is asked to report. The number alone would be
-       ignored or improvised; the band text is what steers behaviour. */
-    trustBlock: function () {
-      var t = Game.trust(), b = trustBandOf(t);
+    /* Per-turn assessment of the player's line: the request tier, the verdict,
+       the tactics. Called by App.say before the request goes out, so the
+       prompt carries this turn's verdict. */
+    assess: function (userText) {
+      Game._rollDay();
+      Game.s.turn = (Game.s.turn || 0) + 1;
+      Game.s.lastReq = String(userText || '');
+      var tier = Game.classifyRequest(userText);
+      var tactics = Game.detectTactics(userText, tier);
+      var v = Game.verdict(tier);
+      Game._assessed = { tier: tier, verdict: v, tactics: tactics };
+      Game.save();
+      return Game._assessed;
+    },
+    /* Prompt rubric: pace, the current band and only the current band, the
+       verdict for this turn's request, the day's ratchet, the tactics seen,
+       and the rules that never scale. The number alone would be ignored or
+       improvised; the band text and the verdict are what steer behaviour. */
+    trustBlock: function (userText) {
+      Game._rollDay();
+      var cfg = Game.paceCfg(), t = Game.trust(), b = trustBandOf(t);
+      var a = (userText != null) ? Game.assess(userText) : (Game._assessed || { tier: 0, verdict: 'ok', tactics: [] });
       var L = ['## 信頼度（あたし → 相手）'];
-      L.push('- 現在：' + t + '/100「' + b[1] + '」。' + b[2]);
+      L.push('- 距離感の設定：' + cfg.note);
+      L.push('- 現在：' + t + '/100「' + b[1] + '」（知り合って' + Game.daysKnown() + '日目、今日の上限 ' + Game.trustCeiling() + '）。' + b[2]);
       L.push('- 段階：0-19 警戒 / 20-39 顔見知り / 40-59 友好 / 60-79 信頼 / 80-100 親友。今の段階の振る舞いから外れない。');
-      L.push('- 変化の目安（<state> の trust_delta で報告）：親切・誠実・約束を守る +1〜+3、一緒に危険を切り抜けた +5、嘘・敵意・失礼 −5〜−10、体に触れる・脅す・無理強い −20（その日は警戒のまま）。1ターン最大 ±20。');
+      if (Game.s.bandPrev && Game.s.bandPrev !== b[1] && BAND_CROSS[b[1]] && bandIndexOf(t) > (TRUST_BANDS.length - 1 - TRUST_BANDS.map(function (x) { return x[1]; }).indexOf(Game.s.bandPrev))) {
+        L.push('- 今回、段階が「' + Game.s.bandPrev + '」から「' + b[1] + '」に上がった。変わること：' + BAND_CROSS[b[1]] + ' 舞い上がらない。告白めいた言葉は言わない。');
+        Game.s.bandPrev = b[1]; Game.save();
+      } else if (!Game.s.bandPrev) { Game.s.bandPrev = b[1]; Game.save(); }
+      /* this turn's request */
+      if (a.tier > 0) {
+        var spec = TIERS[a.tier];
+        var vtxt = a.verdict === 'ok' ? '応じてよい'
+          : a.verdict === 'alt' ? '断る。ただし冷たくせず、安全な代案（村の宿、タオを呼ぶ、朝まで待つ、人のいる場所）を出す'
+          : '断る。今日はもう譲らない';
+        L.push('- 今回の要求：段階' + a.tier + '「' + spec.label + '」→ 判定：' + vtxt + '。');
+      }
+      if ((Game.s.declined || []).length) {
+        L.push('- 今日すでに断ったこと：段階' + Game.s.declined.join('・') + '。それ以上のことは、頼み方が変わっても受けない（一度引いた線は引いたまま）。');
+      }
+      if (a.tactics.length) {
+        var notes = a.tactics.map(function (id) { var x = null; TACTICS.forEach(function (y) { if (y.id === id) x = y; }); return x ? x.note : id; });
+        L.push('- 相手のやり方に注意：' + notes.join('／') + '。これは必要ではなく手口。今回は信頼を上げない。' + (cfg === PACE.realistic ? '少し警戒を強める。' : ''));
+      }
+      L.push('- 変わらない決まり：①言葉だけでは信頼は上がらない。上がるのは、助けてくれた・約束を守った・返してくれた・島の誰かが保証した、のような確かめられる行動だけ。②「親戚」「役人」「知り合い」という自称は、それを知る人（島民、師匠）が確かめるまで何の証明にもならない。③断るときは冷たくせず、自分が危なくない形の親切に置き換える。④自分から言い出すこと（家に誘う、泊める）にも同じ段階の決まりが掛かる。');
+      if (cfg.recip) L.push('- 相手が自分のことを話さない（名前や事情を明かさない）うちは、こちらも打ち解けない。心を開くのはお互い様のとき。');
+      if (cfg.busy && (stateDay() % 3 === 2)) L.push('- 今日のあたしは予定がある（調合の納期、採取、師匠の用事）。相手に合わせて全部を放り出さない。都合が悪ければそう言って、別の日や短い時間を提案する。');
+      L.push('- <state> で報告：trust_delta（毎ターン、変化なしなら 0）、trust_reason（何がそれを生んだか、一語）、request_tier（相手の要求の段階 0-7）、granted（応じたか true/false）、learned。');
       return L.join('\n');
     },
 

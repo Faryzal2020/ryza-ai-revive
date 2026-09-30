@@ -298,6 +298,13 @@
         function (v) { Config.set('tts.lang', v); });
       var lh = document.createElement('div');
       lh.className = 'hint'; lh.textContent = T('settings.lang.ttsHint');
+      /* ---------------- relationship pacing (story / natural / realistic) */
+      App._title(w, T('settings.pace'));
+      App._select(w, T('settings.pace.label'), (window.Game && Game.pace) ? Game.pace() : 'natural',
+        [{ v: 'story', t: T('onb.q09.c1') }, { v: 'natural', t: T('onb.q09.c2') }, { v: 'realistic', t: T('onb.q09.c3') }],
+        function (v) { Config.set('profile.pace', v); });
+      var ph = document.createElement('div');
+      ph.className = 'hint'; ph.textContent = T('settings.pace.hint');
       w.appendChild(lh);
 
       App._title(w, T('settings.app'));

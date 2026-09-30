@@ -1605,7 +1605,7 @@
     _extraSections: function (cue) {
       var st = Config.section('state');
       var out = [];
-      try { out.push(Game.trustBlock()); } catch (e) {}
+      try { out.push(Game.trustBlock(cue)); } catch (e) {}
       try {
         if (window.Lorebook) {
           var place = World.find ? World.find(st.stage) : null;
@@ -1774,6 +1774,7 @@
         if (sc) {
           Game.setTrust(sc.trust);
           Game.s.known = []; Game.learn(sc.known || []);
+          Game.s.declined = []; Game.s.granted = 0; Game.s.turn = 0; Game.save();
           Config.set('state.scenarioSeeded', id);
           if (sc.stage && sc.stage !== st.stage) App.gotoStage(sc.stage);
           var lang = (I18n.lang || 'en');

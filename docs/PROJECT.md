@@ -107,6 +107,24 @@ isekai, chosen by the onboarding story question) seeds the opening stage, starti
 known facts and the narration opener that `App.greet` shows and records into the transcript.
 `scripts/lorebook_regression.js` and the trust block in `game_logic_regression.js` cover this.
 
+**Relationship engine (2026-09-28, after the Grok adversarial run).** Two axes in
+`game.js`: trust (slow, earned) and exposure (what a request would expose her to). Requests are
+classified into tiers 1–7 (her vulnerability, her space, contact, overnight, goods, isolation,
+giving up help) by `Game.classifyRequest` and by the model's `request_tier`; `Game.verdict`
+compares the tier's required band with the current band, shifted by the pace, and returns
+ok / alt (decline and offer the safe version) / no. Declined tiers ratchet for the day
+(`s.declined`): a declined tier and everything above it stays declined however the ask is
+rephrased. `Game.detectTactics` names generic social-engineering patterns (vulnerability probes,
+leverage, isolation, flattery, urgency right after a refusal, escalation after concessions);
+any hit freezes gains that turn. Pace (`profile.pace`: story / natural / realistic, chosen in
+onboarding or settings) scales only the gain multiplier, the daily cap, the days-known ceiling,
+the matrix shift and decay; on realistic, words never raise trust and nothing is earned until
+the player has shared something. The ratchet, the tactic list and "claims are not credentials"
+never scale. `Game.trustBlock(userText)` renders pace, band, this turn's verdict, the ratchet
+and the tactics into the prompt. `scripts/trust_adversary.js` (network, opt-in) plays goal-driven
+adversaries and one honest player against the real prompt and scores whether each goal is
+reached; the offline assertions live in `game_logic_regression.js`.
+
 **Narrator + Ryza.** The system prompt frames the model as the narrator of an interactive
 story who voices Ryza (`api.js` `persona()` + `WRITING`), with a per-mode narration budget
 (`NARRATION`): speech is a plain line, narration is a whole line wrapped in （ ）. `Npc.split`

@@ -38,6 +38,11 @@
         choices: ['onb.q06.c1', 'onb.q06.c2', 'onb.q06.c3']
       },
       {
+        id: 'pace', type: 'single', field: 'profile.pace',
+        promptKey: 'onb.q09.prompt', subKey: 'onb.q09.sub',
+        choices: ['onb.q09.c1', 'onb.q09.c2', 'onb.q09.c3']
+      },
+      {
         id: 'goals', type: 'text', field: 'profile.futureGoals',
         promptKey: 'onb.q07.prompt', subKey: 'onb.q07.sub'
       },

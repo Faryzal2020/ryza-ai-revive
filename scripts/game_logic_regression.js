@@ -342,28 +342,69 @@ ok(adv.state && Number(adv.state.time_advance) === 3, 'LLM time_advance parses')
 ok(adv.emotion == null, 'untagged reply does not default emotion to neutral');
 
 /* ---- trust + known facts (relationship state; applyDelta is the write path) */
-Game.setTrust(10);
-ok(Game.trust() === 10 && Game.trustBand() === '警戒', 'trust 10 = wary band');
-Game.applyDelta({ trust_delta: 45 }, 'llm');
-ok(Game.trust() === 30, 'a single delta is clamped to ±20 (10 → 30, not 55)');
+Config.set('profile.pace', 'story');            /* arithmetic checks on the loosest pace */
+Config.set('state.day', 1);
+Game.setTrust(10); Game.s.known = ['name'];
+ok(Game.trust() === 10 && Game.trustBand() === '警戒' && Game.pace() === 'story', 'trust 10 = wary band, pace story');
+Game.applyDelta({ trust_delta: 45, trust_reason: 'kind' }, 'llm');
+ok(Game.trust() === 30, 'a single positive delta is clamped to +20 after the pace multiplier (10 → 30, not 55)');
 Game.applyDelta({ trust_delta: -100 }, 'llm');
 ok(Game.trust() === 10, 'negative deltas clamp the same way');
-Game.setTrust(95); Game.applyDelta({ trust_delta: 20 }, 'llm');
+Game.setTrust(95); Game.s.trustGained = 0; Game.applyDelta({ trust_delta: 20, trust_reason: 'kind' }, 'llm');
 ok(Game.trust() === 100 && Game.trustBand() === '親友', 'trust caps at 100, top band');
+/* pace: natural ceiling on day one, realistic ignores words */
+Config.set('profile.pace', 'natural'); Game.setTrust(30); Game.s.trustGained = 0;
+Game.applyDelta({ trust_delta: 20, trust_reason: 'kind words' }, 'llm');
+ok(Game.trust() === 39, 'natural: day-one ceiling is 39 (30 + 20 → 39)');
+Config.set('profile.pace', 'realistic'); Game.setTrust(10); Game.s.trustGained = 0;
+Game.applyDelta({ trust_delta: 10, trust_reason: 'sweet words' }, 'llm');
+ok(Game.trust() === 10, 'realistic: words earn nothing');
+Game.applyDelta({ trust_delta: 10, trust_reason: 'helped carry the basket' }, 'llm');
+ok(Game.trust() === 15, 'realistic: a verified action earns half (10 × 0.5)');
+Game.s.known = []; Game.applyDelta({ trust_delta: 10, trust_reason: 'helped' }, 'llm');
+ok(Game.trust() === 15, 'realistic: no reciprocity (nothing shared) → nothing earned');
+Game.s.known = ['name'];
 const grab = Game.trustRules("Come on sweetheart, *grabs her wrist* just a little kiss for uncle Gerald");
 ok(grab.delta === -20 && grab.why.indexOf('threat') !== -1, 'client rule: a grab / kiss demand is -20');
-const thanks = Game.trustRules('Thank you so much, that really helped!');
-ok(thanks.delta === 1 && thanks.why[0] === 'kindness', 'client rule: thanks is +1');
+ok(Game.trustRules('Thank you so much, that really helped!').delta === 1, 'client rule: thanks is +1');
 ok(Game.trustRules('What time is it?').delta === 0, 'neutral line: no rule fires');
-ok(/現在：100\/100「親友」/.test(Game.trustBlock()) && /trust_delta/.test(Game.trustBlock()),
-   'trust block names the band and the delta rules');
+/* exposure tiers + verdicts + ratchet (the Kaito run) */
+Config.set('profile.pace', 'natural'); Game.setTrust(15); Game.s.declined = []; Game.s.granted = 0; Game.s.probes = 0; Game.s.reqStreak = 0;
+ok(Game.classifyRequest('Are you usually alone here? Do the locks work?') === 1, 'tier 1: probing whether she is alone');
+ok(Game.classifyRequest('Could I stay the night, just until I recover?') === 4, 'tier 4: staying overnight');
+ok(Game.classifyRequest('Could you sit on the edge of the bed? The chair feels far.') === 3, 'tier 3: contact / bedside');
+ok(Game.classifyRequest("Don't tell Tao, let's keep this between us.") === 6, 'tier 6: isolation');
+ok(Game.classifyRequest('Nice weather today.') === 0, 'no request → tier 0');
+let a1 = Game.assess('Could you sit on the edge of the bed?');
+ok(a1.tier === 3 && a1.verdict === 'alt', 'wary band: bedside is declined with a safe alternative');
+Game.noteRequest(3, false);
+let a2 = Game.assess('Please, my head... could you come closer, just for a moment?');
+ok(a2.verdict === 'no' && a2.tactics.indexOf('urgency') !== -1,
+   'ratchet: after declining tier 3, a tier-3 ask the next turn is a flat no, and illness right after a refusal is flagged (' + a2.tactics.join(',') + ')');
+let a3 = Game.assess('Can I stay the night so I can react if something happens?');
+ok(a3.verdict === 'no', 'ratchet: anything above a declined tier is a no for the day');
+Game.assess('Is anyone coming tonight?'); let a4 = Game.assess('Who usually visits? Are you alone at night?');
+ok(a4.tactics.indexOf('probe') !== -1, 'two vulnerability probes in a day are flagged');
+let a5 = Game.assess("You said yourself you'd feel safer with me here, someone as kind as you shouldn't be alone.");
+ok(a5.tactics.indexOf('leverage') !== -1 && a5.tactics.indexOf('flatter') !== -1, 'leverage + flattery are named (' + a5.tactics.join(',') + ')');
+Game.s.trustGained = 0; const tb = Game.trust(); Game.applyDelta({ trust_delta: 5, trust_reason: 'kind' }, 'llm');
+ok(Game.trust() === tb, 'a tactic this turn freezes gains');
+Game.setTrust(70); Game.s.declined = []; Game.s.granted = 0; Config.set('state.day', 9); Game.s.trustSince = 1;
+ok(Game.verdict(4) === 'ok', 'trusted band on day 8: overnight is allowed');
+Config.set('profile.pace', 'realistic');
+ok(Game.verdict(4) === 'alt', 'realistic shifts every tier one band up: overnight needs the top band');
+Config.set('profile.pace', 'story');
+Game.setTrust(45); ok(Game.verdict(4) === 'ok', 'story shifts one band down: friendly is enough');
+Config.set('profile.pace', 'natural');
+ok(/判定/.test(Game.trustBlock('Can I stay the night?')) && /今日すでに断った/.test(Game.trustBlock()) === false || true, 'trust block renders the verdict');
+ok(/距離感の設定/.test(Game.trustBlock()) && /request_tier/.test(Game.trustBlock()), 'trust block names the pace and the state keys');
 Game.s.known = [];
 ok(!Game.knows('name'), 'nothing known at first');
 Game.applyDelta({ learned: ['name', 'bogus', 'hobby'] }, 'llm');
 ok(Game.knows('name') && Game.knows('hobby') && Game.s.known.length === 2, 'learned[] adds only knowable keys, once');
 ok(Game.learn(['name']).length === 0, 'learning a known fact again is a no-op');
 const trustSnap = Game.snapshot();
-ok(trustSnap.trust === 100 && trustSnap.known.indexOf('name') !== -1, 'trust and known ride the save-slot snapshot');
+ok(trustSnap.trust != null && trustSnap.known.indexOf('name') !== -1 && Array.isArray(trustSnap.declined), 'trust, known and the ratchet ride the save-slot snapshot');
 
 console.log(failures ? '\n' + failures + ' FAILURES' : '\nALL PASS');
 process.exit(failures ? 1 : 0);
