@@ -44,7 +44,7 @@
     apply: apply,
     restore: function () {
       Nsfw._enabled = configuredEnabled();
-      apply(Nsfw._enabled);
+      apply(false);
     },
     setEnabled: function (on) {
       Nsfw._enabled = !!on;
@@ -53,7 +53,10 @@
           Config.set('app.nsfwEnabled', Nsfw._enabled);
         }
       } catch (e) {}
-      apply(Nsfw._enabled);
+      /* Enabling NSFW in settings only grants permission for the LLM to undress Ryza;
+         she remains clothed unless the LLM explicitly undresses her via undress:on.
+         Disabling NSFW forces Ryza back into her normal clothes immediately. */
+      apply(false);
     },
     reset: function () { apply(false); },
     /* One fact for the system prompt. Not a rule list. */

@@ -70,11 +70,24 @@
 <div id="scrim"></div>
 
 <main id="view-talk" class="view active">
+  <div id="debug-stats-panel" class="hidden">
+    <div class="dbg-head">
+      <div class="dbg-title">
+        <span>🐞</span> <b data-i18n="debug.title">LLM 隐藏状态监视器</b>
+      </div>
+      <div class="dbg-acts">
+        <button type="button" id="btn-dbg-min" class="dbg-btn" title="Minimize" data-i18n-title="debug.minimize">−</button>
+        <button type="button" id="btn-dbg-close" class="dbg-btn" title="Close" data-i18n-title="debug.close">×</button>
+      </div>
+    </div>
+    <div id="debug-stats-content" class="dbg-body"></div>
+  </div>
   <div id="hud-cluster">
     <button type="button" class="apple-row" id="hud-stamina" title="スタミナ" data-i18n-title="hud.stamina"></button>
     <div class="hud-line">
       <button type="button" class="money-pill" id="hud-money" title="所持金" data-i18n-title="hud.money"><img src="assets/icons/hud_coin.svg" alt=""><b id="hud-money-n">0</b></button>
       <button type="button" class="lv-pill" id="hud-level" title="レベル" data-i18n-title="hud.level">Lv1</button>
+      <span id="hud-autosave" class="hud-autosave" title="Autosaved">💾</span>
     </div>
   </div>
   <div id="quick-btns">
@@ -91,6 +104,7 @@
       <button type="button" class="round-btn hidden" id="btn-posture" title="Sit / Stand" data-i18n-title="hud.posture">座</button>
       <button type="button" class="round-btn" id="btn-replay" title="Replay" data-i18n-title="voice.replay">▶</button>
       <button type="button" class="round-btn" id="btn-voicefav" title="Favourite" data-i18n-title="voice.fav">★</button>
+      <button type="button" class="round-btn" id="btn-debug-toggle" title="Debug Stats Monitor" data-i18n-title="talk.debugStats">🐞</button>
     </div>
     <button type="button" class="round-btn quick-toggle" id="btn-quick-toggle" title="More buttons" data-i18n-title="talk.more">⋯</button>
     <button type="button" class="round-btn chev" id="btn-log-toggle" title="Expand the conversation" data-i18n-title="talk.expand"><img src="assets/icons/chevrons.svg" alt=""></button>
@@ -125,6 +139,7 @@
       <button type="button" class="round-btn speed-btn" id="btn-speed" title="Text speed" data-i18n-title="speed.title"><img src="assets/icons/text_speed_1x.svg" alt="×1"></button>
       <div class="input-pill">
         <input id="input" type="text" placeholder="Ask me anything!" autocomplete="off" data-i18n-placeholder="input.hint">
+        <button type="button" id="btn-bump" title="Bump Ryza (Let her take the lead)" data-i18n-title="talk.bump"><img src="assets/icons/auto_advance.svg" alt="bump"></button>
         <button type="button" id="btn-mic" class="mic-btn hidden" data-i18n-title="mic.start" title="Voice input"></button>
         <button type="button" id="btn-newtalk" title="New talk" data-i18n-title="nav.newTalk"><img src="assets/icons/asterisk.svg" alt=""></button>
         <button type="button" id="btn-send" class="round-btn send-btn" title="Send" data-i18n-title="talk.send"><img src="assets/icons/play.svg" alt="send"></button>
@@ -329,22 +344,60 @@
   <button type="button" class="btn primary" id="btn-title-start" data-i18n="title.start" disabled>…</button>
 </div>
 
+<div id="overlay-start-menu" class="overlay hidden">
+  <div class="start-menu-card">
+    <div class="start-menu-head">
+      <h2 data-i18n="start.title">选择存档与设置</h2>
+      <button type="button" class="mini-btn" id="btn-start-back" data-i18n="start.back">返回</button>
+    </div>
+    <div class="start-menu-scroll">
+      <!-- Section 1: Save Slots -->
+      <div class="start-section">
+        <div class="start-sec-title">
+          <span>💾</span> <span data-i18n="start.slots">存档槽</span>
+        </div>
+        <div id="start-slots-list" class="start-slots-list"></div>
+      </div>
+
+      <!-- Section 2: API & Connection Settings -->
+      <div class="start-section">
+        <div class="start-sec-title">
+          <span>⚡</span> <span data-i18n="start.api">API 与连接设置</span>
+        </div>
+        <div id="start-api-form" class="start-api-form"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="overlay-onboard" class="overlay hidden">
-  <div class="onb-card">
-    <div id="onb-progress" class="onb-progress"></div>
-    <h2 id="onb-prompt"></h2>
-    <p id="onb-sub" class="onb-sub"></p>
-    <div id="onb-body"></div>
-    <div class="btn-row">
-      <button type="button" class="btn" id="onb-skip" data-i18n="onb.skip">跳过</button>
-      <button type="button" class="btn primary" id="onb-next" data-i18n="onb.next">下一步</button>
+  <div class="onb-scroll-card">
+    <div class="onb-head">
+      <h2 id="onb-title" data-i18n="onb.singleTitle">冒险者设定与故事开端</h2>
+      <p id="onb-sub" class="onb-sub" data-i18n="onb.singleSub">填写你的角色信息与隐私秘密，并决定莱莎与你的相遇方式。</p>
+    </div>
+    <div id="onb-body" class="onb-scroll-body"></div>
+    <div class="btn-row onb-foot">
+      <button type="button" class="btn" id="onb-back" data-i18n="start.back">返回</button>
+      <button type="button" class="btn" id="onb-skip" data-i18n="onb.quickStart">默认出发</button>
+      <button type="button" class="btn primary" id="onb-next" data-i18n="onb.begin">启程出发 (Begin Journey)</button>
     </div>
   </div>
 </div>
 
 <div id="overlay-prologue" class="overlay hidden">
-  <p id="pro-step"></p>
-  <p id="pro-hint" class="onb-sub"></p>
+  <div class="pro-card">
+    <div class="pro-head">
+      <span id="pro-step" class="onb-progress">1 / 9</span>
+      <h3 data-i18n="onb.prologueTitle">序章</h3>
+    </div>
+    <div id="pro-sub" class="pro-sub"></div>
+    <p id="pro-hint" class="onb-sub"></p>
+    <div class="btn-row">
+      <button type="button" class="btn primary" id="btn-pro-skip" data-i18n="onb.skipPrologue">跳过序章</button>
+      <button type="button" class="btn" id="btn-pro-next" data-i18n="onb.next">下一节</button>
+    </div>
+  </div>
 </div>
 
 <div id="overlay-alarm" class="overlay hidden">

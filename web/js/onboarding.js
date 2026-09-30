@@ -1,271 +1,460 @@
-/* Title + onboarding_questions + prologue + tutorial_talk.
-   Question widgets follow dart_source_tree: birthday/gender, free text,
-   single/multi choice. Copy is reconstructed from i18n keys + recovered lines. */
+/* Title + single scrollable onboarding + prologue subtitles/skip + tutorial.
+   Implements 4-tier persona collection and story beginning scenario branching. */
 (function (global) {
   'use strict';
 
-  function questions() {
-    return [
-      {
-        id: 'identity', type: 'identity',
-        promptKey: 'onb.identity.prompt', subKey: 'onb.identity.sub'
-      },
-      {
-        id: 'appearance', type: 'text', field: 'profile.appearance',
-        promptKey: 'onb.q01.prompt', subKey: 'onb.q01.sub', phKey: 'onb.q01.ph'
-      },
-      {
-        id: 'background', type: 'text', field: 'profile.background',
-        promptKey: 'onb.q02.prompt', subKey: 'onb.q02.sub'
-      },
-      {
-        id: 'hobby', type: 'text', field: 'profile.hobby',
-        promptKey: 'onb.q03.prompt', subKey: 'onb.q03.sub'
-      },
-      {
-        id: 'activities', type: 'multi', field: 'profile.interest',
-        promptKey: 'onb.q04.prompt', subKey: 'onb.q04.sub',
-        choices: ['onb.q04.c1', 'onb.q04.c2', 'onb.q04.c3', 'onb.q04.c4', 'onb.q04.c5']
-      },
-      {
-        id: 'alchemy', type: 'multi', field: 'profile.interestExtra',
-        promptKey: 'onb.q05.prompt', subKey: 'onb.q05.sub',
-        choices: ['onb.q05.c1', 'onb.q05.c2', 'onb.q05.c3', 'onb.q05.c4', 'onb.q05.c5', 'onb.q05.c6']
-      },
-      {
-        id: 'story', type: 'single', field: 'profile.storyStart',
-        promptKey: 'onb.q06.prompt', subKey: 'onb.q06.sub',
-        choices: ['onb.q06.c1', 'onb.q06.c2', 'onb.q06.c3']
-      },
-      {
-        id: 'pace', type: 'single', field: 'profile.pace',
-        promptKey: 'onb.q09.prompt', subKey: 'onb.q09.sub',
-        choices: ['onb.q09.c1', 'onb.q09.c2', 'onb.q09.c3']
-      },
-      {
-        id: 'goals', type: 'text', field: 'profile.futureGoals',
-        promptKey: 'onb.q07.prompt', subKey: 'onb.q07.sub'
-      },
-      {
-        id: 'personality', type: 'text', field: 'profile.personality',
-        promptKey: 'onb.q08.prompt', subKey: 'onb.q08.sub'
-      }
-    ];
-  }
-
-  /* Tutorial lines. The ones marked ✎ are recovered verbatim from the AOT
-     snapshot (tutorial_intro_talk_presenter / intro coachmarks / stamina
-     copy); the connective tissue around them is ours. */
+  /* Tutorial lines. Recovered verbatim from the AOT snapshot. */
   var TUTORIAL = [
     { emotion: 'happy', attitude: 'agree', ja: 'やあ、会えたね。あたし、ライザ。これからよろしくね。' },
-    { emotion: 'happy', attitude: 'agree', ja: '画面の見方を説明するね。' },                    /* ✎ */
+    { emotion: 'happy', attitude: 'agree', ja: '画面の見方を説明するね。' },
     { emotion: 'neutral', attitude: 'agree', ja: '上のほうのリンゴはあたしのスタミナ。' +
-        '無くなると気絶しちゃうから、気をつけて。' +                                              /* ✎ */
-        '安全な場所で寝ると回復するよ。' },                                                        /* ✎ */
-    { emotion: 'laughing', attitude: 'agree', ja: '手に入れたアイテムは、ここにしまわれるよ。' + /* ✎ */
-        'この世界のお金だよ——これも。' },                                                          /* ✎ */
+        '無くなると気絶しちゃうから、気をつけて。' +
+        '安全な場所で寝ると回復するよ。' },
+    { emotion: 'laughing', attitude: 'agree', ja: '手に入れたアイテムは、ここにしまわれるよ。' +
+        'この世界のお金だよ——これも。' },
     { emotion: 'tease', attitude: 'question', ja: 'なんでも聞いてね。' +
-        '困ったときは、まずは船を手に入れて、船で自由に旅へ出ようとあたしは思ってる！' },          /* ✎ prologue */
-    { emotion: 'happy', attitude: 'agree', ja: '迷ったら、クエストを進めてみて。' +               /* ✎ */
-        '君だけの自由な発想で、クエストをクリアしていくのを、楽しみにしてるよ。' },                /* ✎ */
-    { emotion: 'laughing', attitude: 'agree', ja: 'まずはあたしとお喋りでもしてリフレッシュしよっ' }  /* ✎ */
+        '困ったときは、まずは船を手に入れて、船で自由に旅へ出ようとあたしは思ってる！' },
+    { emotion: 'happy', attitude: 'agree', ja: '迷ったら、クエストを進めてみて。' +
+        '君だけの自由な発想で、クエストをクリアしていくのを、楽しみにしてるよ。' },
+    { emotion: 'laughing', attitude: 'agree', ja: 'まずはあたしとお喋りでもしてリフレッシュしよっ' }
   ];
 
   var Onboarding = {
-    step: 0,
-    answers: {},
+    _targetSlot: null,
+    _selectedScenario: 'daily',
     _onDone: null,
     _audio: null,
+    _proIdx: 1,
+    _tutIdx: 0,
+    _playTutAfterPro: false,
 
     isDone: function () {
       return !!(Config.section('state').onboardingDone);
     },
 
+    skip: function () {
+      var def = (Config.DEFAULTS && Config.DEFAULTS.profile) ? Config.DEFAULTS.profile : {};
+      Config.set('profile.name', def.name || '冒険者');
+      Config.set('chara.callMe', def.name || '冒険者');
+      Config.set('profile.birthday', def.birthday || '2000-01-01');
+      Config.set('profile.gender', def.gender || 'other');
+      Config.set('profile.storyStart', 'daily');
+      Config.set('profile.pace', 'natural');
+      Config.save();
+      Onboarding._finishOnboarding(false, false);
+    },
+
     showTitle: function (onStart) {
       var el = document.getElementById('overlay-title');
       var btn = document.getElementById('btn-title-start');
-      document.body.classList.add('boot');       /* hide chrome behind title */
+      document.body.classList.add('boot');
       el.classList.remove('hidden');
       btn.disabled = false;
       btn.textContent = I18n.t('title.start');
       btn.onclick = function () {
         if (window.Sound) Sound.unlock();
-        el.classList.add('hidden');
-        document.body.classList.remove('boot');
-        onStart && onStart();
+        if (onStart) onStart();
+        else if (window.App && App.openStartMenu) App.openStartMenu();
       };
     },
 
-    start: function (onDone) {
+    start: function (onDone, slotIndex) {
       if (window.Sound) {
         Sound.unlock();
         Sound.setRoute('title');
       }
+      Onboarding._targetSlot = (slotIndex != null ? slotIndex : null);
       Onboarding._onDone = onDone;
-      Onboarding.step = 0;
-      Onboarding.answers = {};
-      document.getElementById('overlay-onboard').classList.remove('hidden');
-      Onboarding._render();
+      Onboarding._selectedScenario = 'daily';
+
+      var elTitle = document.getElementById('overlay-title');
+      if (elTitle) elTitle.classList.add('hidden');
+      var elStart = document.getElementById('overlay-start-menu');
+      if (elStart) elStart.classList.add('hidden');
+
+      var elOnb = document.getElementById('overlay-onboard');
+      if (elOnb) {
+        elOnb.classList.remove('hidden');
+        if (window.App && App.applyI18n) App.applyI18n(elOnb);
+      }
+      Onboarding._renderSingle();
     },
 
-    skip: function () {
-      Config.set('state.onboardingDone', true);
-      document.getElementById('overlay-onboard').classList.add('hidden');
-      document.getElementById('overlay-prologue').classList.add('hidden');
-      Onboarding._onDone && Onboarding._onDone();
-    },
-
-    _render: function () {
-      var qs = questions();
-      var q = qs[Onboarding.step];
+    _renderSingle: function () {
       var host = document.getElementById('onb-body');
-      var prog = document.getElementById('onb-progress');
-      var title = document.getElementById('onb-prompt');
-      var sub = document.getElementById('onb-sub');
-      document.getElementById('onb-skip').textContent = I18n.t('onb.skip');
-      if (!q) { Onboarding._prologue(); return; }
-      prog.textContent = (Onboarding.step + 1) + ' / ' + qs.length;
-      title.textContent = I18n.t(q.promptKey);
-      sub.textContent = I18n.t(q.subKey);
+      if (!host) return;
       host.innerHTML = '';
+      var T = function (k) { return I18n.t(k); };
+      var p = Config.section('profile');
 
-      if (q.type === 'identity') {
-        host.appendChild(Onboarding._field(I18n.t('onb.name'), 'onb-name', 'text', Config.section('profile').name || ''));
-        host.appendChild(Onboarding._field(I18n.t('onb.birthday'), 'onb-bday', 'date', Config.section('profile').birthday || ''));
-        var g = document.createElement('div');
-        g.className = 'field';
-        g.innerHTML = '<label></label><div class="chips" id="onb-gender"></div>';
-        g.querySelector('label').textContent = I18n.t('onb.gender');
-        ['female', 'male', 'other'].forEach(function (v) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'chip' + (Config.section('profile').gender === v ? ' on' : '');
-          b.textContent = I18n.t('onb.gender.' + v);
-          b.onclick = function () {
-            g.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('on'); });
-            b.classList.add('on');
-            b.setAttribute('data-v', v);
-          };
-          b.setAttribute('data-v', v);
-          g.querySelector('#onb-gender').appendChild(b);
-        });
-        host.appendChild(g);
-      } else if (q.type === 'text') {
-        var ta = document.createElement('textarea');
-        ta.id = 'onb-text';
-        ta.rows = 4;
-        ta.placeholder = q.phKey ? I18n.t(q.phKey) : '';
-        host.appendChild(ta);
-      } else if (q.type === 'multi' || q.type === 'single') {
-        var chips = document.createElement('div');
-        chips.className = 'chips';
-        chips.id = 'onb-choices';
-        q.choices.forEach(function (k) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'chip';
-          b.textContent = I18n.t(k);
-          b.setAttribute('data-k', k);
-          b.onclick = function () {
-            if (q.type === 'single') {
-              chips.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('on'); });
-              b.classList.add('on');
-            } else b.classList.toggle('on');
-          };
-          chips.appendChild(b);
-        });
-        host.appendChild(chips);
+      /* Group 1: Basic Identity */
+      var g1 = document.createElement('div');
+      g1.className = 'onb-group';
+      g1.innerHTML = '<div class="onb-group-title">' + T('onb.secIdentity') + '</div>' +
+        '<div class="onb-group-sub">' + T('onb.identity.sub') + '</div>';
+      g1.appendChild(Onboarding._field(T('onb.name'), 'onb-name', 'text', p.name || ''));
+      g1.appendChild(Onboarding._field(T('onb.birthday'), 'onb-bday', 'date', p.birthday || ''));
+
+      var gGender = document.createElement('div');
+      gGender.className = 'field';
+      gGender.innerHTML = '<label>' + T('onb.gender') + '</label><div class="chips" id="onb-gender"></div>';
+      ['female', 'male', 'other'].forEach(function (v) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip' + ((p.gender || 'other') === v ? ' on' : '');
+        b.textContent = T('onb.gender.' + v);
+        b.setAttribute('data-v', v);
+        b.onclick = function () {
+          gGender.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('on'); });
+          b.classList.add('on');
+        };
+        gGender.querySelector('#onb-gender').appendChild(b);
+      });
+      g1.appendChild(gGender);
+      host.appendChild(g1);
+
+      /* Group 2: Outward Persona (Tier 1) */
+      var g2 = document.createElement('div');
+      g2.className = 'onb-group';
+      g2.innerHTML = '<div class="onb-group-title">' + T('onb.secOutward') + '</div>' +
+        '<div class="onb-group-sub">' + T('profile.appearance.hint') + '</div>';
+      g2.appendChild(Onboarding._field(T('profile.appearance'), 'onb-appearance', 'textarea', p.appearance || '', T('onb.q01.ph')));
+      g2.appendChild(Onboarding._field(T('profile.personality'), 'onb-personality', 'text', p.personality || '', T('profile.personality.hint')));
+      host.appendChild(g2);
+
+      /* Group 3: Social Persona (Tier 2) */
+      var g3 = document.createElement('div');
+      g3.className = 'onb-group';
+      g3.innerHTML = '<div class="onb-group-title">' + T('onb.secSocial') + '</div>' +
+        '<div class="onb-group-sub">' + T('profile.background.hint') + '</div>';
+      g3.appendChild(Onboarding._field(T('profile.background'), 'onb-background', 'textarea', p.background || '', T('profile.background.hint')));
+      g3.appendChild(Onboarding._field(T('profile.hobby'), 'onb-hobby', 'text', p.hobby || '', T('profile.hobby.hint')));
+
+      /* Activities chips */
+      var gAct = document.createElement('div');
+      gAct.className = 'field';
+      gAct.innerHTML = '<label>' + T('onb.q04.prompt') + '</label><div class="chips" id="onb-activities"></div>';
+      ['onb.q04.c1', 'onb.q04.c2', 'onb.q04.c3', 'onb.q04.c4', 'onb.q04.c5'].forEach(function (k) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = T(k);
+        b.onclick = function () { b.classList.toggle('on'); };
+        gAct.querySelector('#onb-activities').appendChild(b);
+      });
+      g3.appendChild(gAct);
+
+      /* Alchemy chips */
+      var gAlc = document.createElement('div');
+      gAlc.className = 'field';
+      gAlc.innerHTML = '<label>' + T('onb.q05.prompt') + '</label><div class="chips" id="onb-alchemy"></div>';
+      ['onb.q05.c1', 'onb.q05.c2', 'onb.q05.c3', 'onb.q05.c4', 'onb.q05.c5', 'onb.q05.c6'].forEach(function (k) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = T(k);
+        b.onclick = function () { b.classList.toggle('on'); };
+        gAlc.querySelector('#onb-alchemy').appendChild(b);
+      });
+      g3.appendChild(gAlc);
+      host.appendChild(g3);
+
+      /* Group 4: Concealed Physical Anatomy (Tier 3) */
+      var g4 = document.createElement('div');
+      g4.className = 'onb-group';
+      g4.innerHTML = '<div class="onb-group-title">' + T('onb.secIntimate') + '</div>' +
+        '<div class="onb-group-sub">' + T('profile.intimateBody.hint') + '</div>';
+      g4.appendChild(Onboarding._field(T('profile.intimateBody'), 'onb-intimate', 'textarea', p.intimateBody || '', T('profile.intimateBody.hint')));
+      host.appendChild(g4);
+
+      /* Group 5: Deep Secrets & Desires (Tier 4) */
+      var g5 = document.createElement('div');
+      g5.className = 'onb-group';
+      g5.innerHTML = '<div class="onb-group-title">' + T('onb.secSecrets') + '</div>' +
+        '<div class="onb-group-sub">' + T('profile.privateSecret.hint') + '</div>';
+      g5.appendChild(Onboarding._field(T('profile.privateSecret'), 'onb-secret', 'textarea', p.privateSecret || '', T('profile.privateSecret.hint')));
+      g5.appendChild(Onboarding._field(T('profile.futureGoals'), 'onb-goals', 'textarea', p.futureGoals || '', T('profile.futureGoals.hint')));
+      host.appendChild(g5);
+
+      /* Group 6: Story Beginning Scenario */
+      var g6 = document.createElement('div');
+      g6.className = 'onb-group';
+      g6.innerHTML = '<div class="onb-group-title">' + T('onb.secScenario') + '</div>' +
+        '<div class="onb-group-sub">' + T('onb.q06.sub') + '</div>';
+
+      var scOptions = document.createElement('div');
+      scOptions.className = 'scenario-options';
+
+      var scenarios = [
+        {
+          id: 'daily',
+          title: T('onb.q06.c1'),
+          desc: I18n.tc('onb.scDesc.daily', 'Start in Ryza\'s atelier on Kurken Island. Ryza knows only your name and outward appearance. Tutorial is available.')
+        },
+        {
+          id: 'longtime',
+          title: T('onb.q06.c2'),
+          desc: I18n.tc('onb.scDesc.longtime', 'Start in Ryza\'s atelier as longtime friends. Ryza already knows your background, hobbies, and demeanor. No tutorial.')
+        },
+        {
+          id: 'isekai',
+          title: T('onb.q06.c3'),
+          desc: I18n.tc('onb.scDesc.isekai', 'Waking up in Pixie Forest moss. Ryza finds you as an injured stranger. Complete first encounter. No tutorial.')
+        }
+      ];
+
+      scenarios.forEach(function (sc) {
+        var card = document.createElement('div');
+        card.className = 'scenario-card' + (Onboarding._selectedScenario === sc.id ? ' on' : '');
+        card.setAttribute('data-scenario', sc.id);
+        card.innerHTML = '<div class="sc-title">' + sc.title + '</div>' +
+          '<div class="sc-desc">' + sc.desc + '</div>';
+        card.onclick = function () {
+          scOptions.querySelectorAll('.scenario-card').forEach(function (c) { c.classList.remove('on'); });
+          card.classList.add('on');
+          Onboarding._selectedScenario = sc.id;
+
+          var tutCheck = document.getElementById('onb-opt-tutorial');
+          if (tutCheck) {
+            if (sc.id === 'daily') {
+              tutCheck.checked = true;
+              tutCheck.disabled = false;
+            } else {
+              tutCheck.checked = false;
+              tutCheck.disabled = true;
+            }
+          }
+        };
+        scOptions.appendChild(card);
+      });
+      g6.appendChild(scOptions);
+
+      /* Relationship Pacing */
+      var gPace = document.createElement('div');
+      gPace.className = 'field';
+      gPace.style.marginTop = '12px';
+      gPace.innerHTML = '<label>' + T('onb.q09.prompt') + '</label>' +
+        '<div style="font-size:12px;opacity:0.75;margin-bottom:6px">' + T('onb.q09.sub') + '</div>' +
+        '<div class="chips" id="onb-pace"></div>';
+      var curPace = p.pace || 'natural';
+      [
+        { id: 'story', k: 'onb.q09.c1' },
+        { id: 'natural', k: 'onb.q09.c2' },
+        { id: 'realistic', k: 'onb.q09.c3' }
+      ].forEach(function (opt) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip' + (curPace === opt.id ? ' on' : '');
+        b.textContent = T(opt.k);
+        b.setAttribute('data-v', opt.id);
+        b.onclick = function () {
+          gPace.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('on'); });
+          b.classList.add('on');
+        };
+        gPace.querySelector('#onb-pace').appendChild(b);
+      });
+      g6.appendChild(gPace);
+
+      /* Checkboxes for prologue & tutorial */
+      var gOpts = document.createElement('div');
+      gOpts.className = 'field';
+      gOpts.style.marginTop = '12px';
+      gOpts.innerHTML =
+        '<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer">' +
+          '<input type="checkbox" id="onb-opt-prologue"> ' +
+          '<span>' + T('onb.prologueOpt') + '</span>' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+          '<input type="checkbox" id="onb-opt-tutorial" checked> ' +
+          '<span>' + T('onb.tutorialOpt') + '</span>' +
+        '</label>';
+      g6.appendChild(gOpts);
+      host.appendChild(g6);
+
+      /* Wire footer buttons */
+      var bBack = document.getElementById('onb-back');
+      if (bBack) {
+        bBack.onclick = function () {
+          document.getElementById('overlay-onboard').classList.add('hidden');
+          if (window.App && App.openStartMenu) App.openStartMenu();
+        };
       }
 
-      document.getElementById('onb-next').textContent =
-        Onboarding.step + 1 >= qs.length ? I18n.t('onb.finish') : I18n.t('onb.next');
+      var bSkip = document.getElementById('onb-skip');
+      if (bSkip) {
+        bSkip.onclick = function () {
+          Onboarding.skip();
+        };
+      }
+
+      var bNext = document.getElementById('onb-next');
+      if (bNext) {
+        bNext.onclick = function () {
+          Onboarding._saveAll();
+          var playPro = !!(document.getElementById('onb-opt-prologue') && document.getElementById('onb-opt-prologue').checked);
+          var playTut = !!(document.getElementById('onb-opt-tutorial') && document.getElementById('onb-opt-tutorial').checked);
+          Onboarding._finishOnboarding(playPro, playTut);
+        };
+      }
     },
 
-    _field: function (label, id, type, value) {
+    _field: function (label, id, type, value, hint) {
       var d = document.createElement('div');
       d.className = 'field';
       var lab = document.createElement('label');
       lab.textContent = label;
-      var inp = document.createElement('input');
-      inp.type = type; inp.id = id; inp.value = value || '';
-      d.appendChild(lab); d.appendChild(inp);
+      d.appendChild(lab);
+      if (type === 'textarea') {
+        var ta = document.createElement('textarea');
+        ta.id = id;
+        ta.rows = 3;
+        ta.value = value || '';
+        if (hint) ta.placeholder = hint;
+        d.appendChild(ta);
+      } else {
+        var inp = document.createElement('input');
+        inp.type = type;
+        inp.id = id;
+        inp.value = value || '';
+        if (hint) inp.placeholder = hint;
+        d.appendChild(inp);
+      }
       return d;
     },
 
-    next: function () {
-      var qs = questions();
-      var q = qs[Onboarding.step];
-      if (q) Onboarding._save(q);
-      Onboarding.step++;
-      if (Onboarding.step >= qs.length) Onboarding._prologue();
-      else Onboarding._render();
+    _saveAll: function () {
+      var name = (document.getElementById('onb-name') || {}).value || '';
+      var bday = (document.getElementById('onb-bday') || {}).value || '';
+      var gEl = document.querySelector('#onb-gender .chip.on');
+      Config.set('profile.name', name.trim());
+      Config.set('profile.birthday', bday);
+      Config.set('profile.gender', gEl ? gEl.getAttribute('data-v') : 'other');
+      if (name.trim()) Config.set('chara.callMe', name.trim());
+
+      var app = (document.getElementById('onb-appearance') || {}).value || '';
+      var per = (document.getElementById('onb-personality') || {}).value || '';
+      Config.set('profile.appearance', app.trim());
+      Config.set('profile.personality', per.trim());
+
+      var bg = (document.getElementById('onb-background') || {}).value || '';
+      var hb = (document.getElementById('onb-hobby') || {}).value || '';
+      Config.set('profile.background', bg.trim());
+      Config.set('profile.hobby', hb.trim());
+
+      var acts = [];
+      document.querySelectorAll('#onb-activities .chip.on').forEach(function (c) { acts.push(c.textContent); });
+      Config.set('profile.interest', acts.join('、'));
+
+      var alcs = [];
+      document.querySelectorAll('#onb-alchemy .chip.on').forEach(function (c) { alcs.push(c.textContent); });
+      Config.set('profile.interestExtra', alcs.join('、'));
+
+      var intim = (document.getElementById('onb-intimate') || {}).value || '';
+      Config.set('profile.intimateBody', intim.trim());
+
+      var sec = (document.getElementById('onb-secret') || {}).value || '';
+      var gls = (document.getElementById('onb-goals') || {}).value || '';
+      Config.set('profile.privateSecret', sec.trim());
+      Config.set('profile.futureGoals', gls.trim());
+
+      var paceEl = document.querySelector('#onb-pace .chip.on');
+      if (paceEl) Config.set('profile.pace', paceEl.getAttribute('data-v') || 'natural');
+
+      Config.set('profile.storyStart', Onboarding._selectedScenario || 'daily');
+      Config.save();
     },
 
-    _save: function (q) {
-      if (q.type === 'identity') {
-        var name = (document.getElementById('onb-name') || {}).value || '';
-        var bday = (document.getElementById('onb-bday') || {}).value || '';
-        var gEl = document.querySelector('#onb-gender .chip.on');
-        Config.set('profile.name', name.trim());
-        Config.set('profile.birthday', bday);
-        Config.set('profile.gender', gEl ? gEl.getAttribute('data-v') : '');
-        if (name.trim()) Config.set('chara.callMe', name.trim());
-        return;
+    _finishOnboarding: function (playPro, playTut) {
+      Config.set('state.onboardingDone', true);
+      Config.save();
+
+      var targetSlot = Onboarding._targetSlot;
+      if (targetSlot != null && window.App && App.saveSlot) {
+        App.saveSlot(targetSlot);
       }
-      if (q.type === 'text') {
-        var v = (document.getElementById('onb-text') || {}).value || '';
-        Config.set(q.field, v.trim());
-        return;
+
+      document.getElementById('overlay-onboard').classList.add('hidden');
+      if (playPro) {
+        Onboarding._playTutAfterPro = playTut;
+        Onboarding._prologue();
+      } else if (playTut && Onboarding._selectedScenario === 'daily') {
+        Onboarding._tutorial();
+      } else {
+        Onboarding._doneDirect();
       }
-      var picked = [];
-      document.querySelectorAll('#onb-choices .chip.on').forEach(function (c) {
-        picked.push(c.textContent);
-      });
-      Config.set(q.field, picked.join('、'));
     },
 
     _prologue: function () {
-      document.getElementById('overlay-onboard').classList.add('hidden');
       var ov = document.getElementById('overlay-prologue');
-      ov.classList.remove('hidden');
+      if (ov) ov.classList.remove('hidden');
       if (window.Sound) Sound.setRoute('prologue');
       Onboarding._proIdx = 1;
       Onboarding._playPrologue();
-    },
 
-    _proIdx: 1,
+      var btnSkip = document.getElementById('btn-pro-skip');
+      if (btnSkip) btnSkip.onclick = function () { Onboarding.skipPrologue(); };
+
+      var btnNext = document.getElementById('btn-pro-next');
+      if (btnNext) btnNext.onclick = function () { Onboarding.prologueNext(); };
+    },
 
     _playPrologue: function () {
       var n = Onboarding._proIdx;
       var label = document.getElementById('pro-step');
+      var sub = document.getElementById('pro-sub');
       var hint = document.getElementById('pro-hint');
-      label.textContent = n + ' / 9';
-      hint.textContent = I18n.t('onb.prologueHint');
-      /* Route through App.audio so the analyser graph (lip-sync RMS) is
-         attached; `force` keeps the prologue audible even with the voice
-         toggle off — it is core onboarding narration, not reply TTS. */
-      var src = Sound.prologue(n);
-      if (window.App && App.playFile) { App.playFile(src, null, true); return; }
+      if (label) label.textContent = n + ' / 9';
+      if (sub) sub.textContent = I18n.t('onb.pro0' + n) || '';
+      if (hint) hint.textContent = I18n.t('onb.prologueHint') || '';
+
+      var src = Sound.prologue ? Sound.prologue(n) : '';
+      if (window.App && App.playFile && src) {
+        App.playFile(src, null, true);
+        return;
+      }
       if (Onboarding._audio) { try { Onboarding._audio.pause(); } catch (e) {} }
-      var a = new Audio(src);
-      Onboarding._audio = a;
-      a.volume = Number(Config.section('app').volume) || 0.9;
-      Avatar.setTalking && Avatar.setTalking(true);
-      a.onended = function () { Avatar.setTalking(false); };
-      a.play().catch(function () { Avatar.setTalking(false); });
+      if (src) {
+        var a = new Audio(src);
+        Onboarding._audio = a;
+        a.volume = Number(Config.section('app').volume) || 0.9;
+        if (window.Avatar && Avatar.setTalking) Avatar.setTalking(true);
+        a.onended = function () { if (window.Avatar && Avatar.setTalking) Avatar.setTalking(false); };
+        a.play().catch(function () { if (window.Avatar && Avatar.setTalking) Avatar.setTalking(false); });
+      }
     },
 
     prologueNext: function () {
       if (Onboarding._audio) { try { Onboarding._audio.pause(); } catch (e) {} }
       if (window.App && App._pauseVoice) App._pauseVoice();
-      else Avatar.setTalking && Avatar.setTalking(false);
+      else if (window.Avatar && Avatar.setTalking) Avatar.setTalking(false);
+
       if (Onboarding._proIdx < 9) {
         Onboarding._proIdx++;
         Onboarding._playPrologue();
-      } else Onboarding._tutorial();
+      } else {
+        var op = document.getElementById('overlay-prologue');
+        if (op) op.classList.add('hidden');
+        if (Onboarding._playTutAfterPro && Onboarding._selectedScenario === 'daily') {
+          Onboarding._tutorial();
+        } else {
+          Onboarding._doneDirect();
+        }
+      }
     },
 
-    _tutIdx: 0,
+    skipPrologue: function () {
+      if (Onboarding._audio) { try { Onboarding._audio.pause(); } catch (e) {} }
+      if (window.App && App._pauseVoice) App._pauseVoice();
+      else if (window.Avatar && Avatar.setTalking) Avatar.setTalking(false);
+
+      var op = document.getElementById('overlay-prologue');
+      if (op) op.classList.add('hidden');
+      if (Onboarding._playTutAfterPro && Onboarding._selectedScenario === 'daily') {
+        Onboarding._tutorial();
+      } else {
+        Onboarding._doneDirect();
+      }
+    },
 
     _tutorial: function () {
       var op = document.getElementById('overlay-prologue');
@@ -274,7 +463,10 @@
       if (oo) oo.classList.add('hidden');
       var ot = document.getElementById('overlay-title');
       if (ot) ot.classList.add('hidden');
+      var os = document.getElementById('overlay-start-menu');
+      if (os) os.classList.add('hidden');
       document.body.classList.remove('boot');
+
       if (window.App) {
         App.showView('talk');
         if (App.setPanelExpanded) App.setPanelExpanded(false);
@@ -305,7 +497,8 @@
           if (App._tutClass) App._tutClass(false);
           App.updateHud();
         }
-        Onboarding._onDone && Onboarding._onDone();
+        if (Onboarding._onDone) Onboarding._onDone();
+        else if (window.App && App.enterGame) App.enterGame(true);
         return;
       }
       var text = (window.I18n && I18n.tc)
@@ -322,7 +515,6 @@
           var hint = (window.I18n && I18n.t('tut.tapHint')) || 'Tap screen to continue';
           ls.textContent = badge + ' (' + (Onboarding._tutIdx + 1) + '/' + TUTORIAL.length + ') · ' + hint;
         }
-        /* the guide's lines are narration (italic), not Ryza's voice */
         if (App.showBubble) App.showBubble(text, 'narration');
         if (App.speakThen) App.speakThen(text, line.emotion);
       }
@@ -364,10 +556,31 @@
       Onboarding._tutorial();
     },
 
+    _doneDirect: function () {
+      var op = document.getElementById('overlay-prologue');
+      if (op) op.classList.add('hidden');
+      var oo = document.getElementById('overlay-onboard');
+      if (oo) oo.classList.add('hidden');
+      var ot = document.getElementById('overlay-title');
+      if (ot) ot.classList.add('hidden');
+      var os = document.getElementById('overlay-start-menu');
+      if (os) os.classList.add('hidden');
+      document.body.classList.remove('boot');
+      if (window.App) {
+        App.showView('talk');
+        if (App.setPanelExpanded) App.setPanelExpanded(false);
+      }
+      if (Onboarding._onDone) {
+        Onboarding._onDone();
+      } else if (window.App && App.enterGame) {
+        App.enterGame(true);
+      }
+    },
+
     totalSteps: function () {
       return TUTORIAL.length;
     }
   };
 
   global.Onboarding = Onboarding;
-})(window);
+})(typeof window !== 'undefined' ? window : globalThis);

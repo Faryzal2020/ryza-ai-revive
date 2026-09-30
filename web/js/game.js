@@ -546,10 +546,10 @@
     PACE: PACE, TIERS: TIERS,
     pace: function () { return paceId(); },
     paceCfg: function () { return PACE[paceId()]; },
-    trust: function () { return Util.clamp(Number(Game.s.trust) || 0, 0, 100); },
+    trust: function () { return Util.clamp(Number((Game.s && Game.s.trust) || 0), 0, 100); },
     trustBand: function () { return trustBandOf(Game.trust())[1]; },
     bandIndex: function () { return bandIndexOf(Game.trust()); },
-    daysKnown: function () { return Math.max(0, stateDay() - (Number(Game.s.trustSince) || stateDay())); },
+    daysKnown: function () { return Math.max(0, stateDay() - (Number((Game.s && Game.s.trustSince)) || stateDay())); },
     /* The ceiling a first-day stranger cannot pass, per pace. */
     trustCeiling: function () {
       var days = Game.daysKnown(), cap = 100;
@@ -558,6 +558,7 @@
     },
     /* Per-day counters roll over with the calendar day. */
     _rollDay: function () {
+      if (!Game.s) return;
       var d = stateDay();
       if (Game.s.trustDay === d) return;
       var gap = Game.s.trustDay ? Math.max(0, d - Game.s.trustDay - 1) : 0;
@@ -572,6 +573,7 @@
        pace, capped per day, capped by the day ceiling, and on realistic only
        action-class reasons count; words alone never do. */
     addTrust: function (n, why, opts) {
+      if (!Game.s) return 0;
       opts = opts || {};
       Game._rollDay();
       var cfg = Game.paceCfg();
@@ -596,6 +598,7 @@
       return Game.s.trust - before;
     },
     setTrust: function (n) {
+      if (!Game.s) return;
       Game.s.trust = Util.clamp(Math.round(Number(n) || 0), 0, 100);
       Game.s.trustSince = stateDay();
       Game.s.bandPrev = Game.trustBand();
@@ -660,7 +663,7 @@
       return hits;
     },
     KNOWABLE: KNOWABLE,
-    knows: function (key) { return (Game.s.known || []).indexOf(key) !== -1; },
+    knows: function (key) { return ((Game.s && Game.s.known) || []).indexOf(key) !== -1; },
     learn: function (keys) {
       var added = [];
       (Array.isArray(keys) ? keys : [keys]).forEach(function (k) {

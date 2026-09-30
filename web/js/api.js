@@ -108,17 +108,35 @@
     lines.push('- 参考になる実際の言い回し：');
     STYLE_SAMPLES.forEach(function (s) { lines.push('  - ' + s); });
 
-    /* Appearance is visible, so it is always a fact; everything else is
-       withheld until the player has actually said it (Game.s.known). Feeding
-       the whole profile as fact is what made her greet strangers by name and
-       job, then invent how she knew. */
+    /* Tier 1: Outward visual appearance & public demeanor (observed at a glance while clothed) */
     var prof = [];
-    if (p.appearance) prof.push('見た目（見れば分かる）：' + p.appearance);
-    if (knows('background') && p.background) prof.push('経歴（本人から聞いた）：' + p.background);
+    if (p.appearance) prof.push('外見・服装（見れば分かる）：' + p.appearance);
+    if (p.personality) prof.push('普段の態度・雰囲気（接すれば分かる）：' + p.personality);
+
+    /* Tier 2: Social persona (known only if told in conversation, or pre-known to longtime friend) */
+    if (knows('background') && p.background) prof.push('経歴・素性（本人から聞いた）：' + p.background);
     if (knows('hobby') && p.hobby) prof.push('趣味（本人から聞いた）：' + p.hobby);
-    if (knows('interest') && p.interest) prof.push('関心事（本人から聞いた）：' + p.interest);
-    if (knows('futureGoals') && p.futureGoals) prof.push('今後の目標（本人から聞いた）：' + p.futureGoals);
-    if (knows('personality') && p.personality) prof.push('性格（付き合って分かった）：' + p.personality);
+    if (knows('interest') && p.interest) prof.push('関心・興味（本人から聞いた）：' + p.interest);
+
+    /* Tier 3: Concealed intimate anatomy (revealed ONLY when undressed or in intimate contact) */
+    var isUndressed = (window.Nsfw && typeof Nsfw.active === 'function') ? Nsfw.active() : false;
+    if (p.intimateBody) {
+      if (isUndressed || knows('intimateBody')) {
+        prof.push('身体のプライベートな特徴・秘密（衣服を脱いで判明）：' + p.intimateBody);
+      } else {
+        prof.push('※注意：衣服の下のプライベートな身体特徴や部位は着衣のため現時点では見えない。脱衣や密着の状況になるまで言及しない。');
+      }
+    }
+
+    /* Tier 4: Deep private secrets & intimate desires (revealed ONLY at high trust or explicit confession) */
+    var trust = (window.Game && Game.s && Game.s.trust != null) ? Game.s.trust : 0;
+    if (p.privateSecret && (trust >= 85 || knows('privateSecret'))) {
+      prof.push('打ち明けられた秘密・真実（深い信頼により開示）：' + p.privateSecret);
+    }
+    if (p.futureGoals && (trust >= 85 || knows('futureGoals'))) {
+      prof.push('本音の望み・将来の夢（深い信頼により開示）：' + p.futureGoals);
+    }
+
     lines.push('');
     lines.push('## 相手（ユーザー）について');
     if (prof.length) prof.forEach(function (s) { lines.push('- ' + s); });
@@ -166,28 +184,36 @@
      both sides know at turn one, the opening stage and the starting trust. */
   var SCENARIOS = {
     daily: {
-      stage: 'stage_01_001_04', trust: 10, known: [],
-      opener: { en: '（A knock at the workshop door. Ryza looks up from the cauldron.）', ja: '（工房の扉を叩く音。ライザが釜から顔を上げる。）', zh: '（工坊的门被敲响。莱莎从锅前抬起头。）' },
-      prompt: '状況：相手はアトリエを訪ねてきた来客。初対面。'
+      stage: 'stage_01_001_04', trust: 10, known: ['name'], tutorial: true,
+      opener: {
+        en: '（A knock at the workshop door. Ryza looks up from the cauldron.）\nHey, come on in! What can I help you with today?\n（She puts her stirrer aside and turns around with a welcoming smile.）',
+        ja: '（工房の扉を叩く音。ライザが釜から顔を上げる。）\nはーい、どうぞ！　今日はどうしたの？\n（混ぜ棒を置いて、笑顔でこちらを振り返る。）',
+        zh: '（工坊的门被敲响。莱莎从锅前抬起头。）\n请进！今天有什么事吗？\n（放下搅拌棒，微笑着转过身来。）'
+      },
+      prompt: '状況：相手はアトリエを訪ねてきた客で、ライザは相手の名前だけを知っている。他の身の上や私的な事情はまだ知らない。日常会話とチュートリアルから始まる。'
     },
     longtime: {
-      stage: 'stage_01_001_04', trust: 70, known: ['name', 'background', 'hobby', 'interest', 'personality'],
-      opener: { en: '（The usual afternoon at the atelier. Ryza waves you in without looking up.）', ja: '（いつもの午後のアトリエ。ライザは顔も上げずに手を振って招き入れる。）', zh: '（工坊里一如既往的午后。莱莎头也不抬地招手让你进来。）' },
-      prompt: '状況：二人は長い付き合い。お互いをよく知っている。'
+      stage: 'stage_01_001_04', trust: 70, known: ['name', 'background', 'hobby', 'interest', 'personality'], tutorial: false,
+      opener: {
+        en: '（The usual afternoon at the atelier. Ryza waves you in without looking up.）\nHey! Perfect timing. Come look at what I just made!\n（She wipes a drop of sweat from her forehead and grins cheerfully.）',
+        ja: '（いつもの午後のアトリエ。ライザは顔も上げずに手を振って招き入れる。）\nやっほー！　いいところに来たね。今できたばかりの調合、見てよ！\n（額の汗をぬぐって、楽しそうに笑う。）',
+        zh: '（工坊里一如既往的午后。莱莎头也不抬地招手让你进来。）\n嗨！来得正好。快来看看我刚做好的调合！\n（擦了擦额头的汗，开心地笑了。）'
+      },
+      prompt: '状況：二人は長い付き合いの友人。名前、素性、趣味、普段の性格はお互いによく知っている（ただし身体のプライベートな秘密や深い本音までは知らない）。チュートリアルは不要。'
     },
     /* The opener is Ryza's own first turn, in the reply format the parser
        reads (（narration）+ speech lines), so the story starts with her
        finding and waking the player. The other-world fact is narrator-only:
        Ryza herself assumes the ordinary explanations a person would. */
     isekai: {
-      stage: 'stage_01_002_02', trust: 5, known: [], ryzaFirst: true,
+      stage: 'stage_01_002_02', trust: 5, known: [], tutorial: false, ryzaFirst: true,
       opener: {
         en: '（Pixie Forest, late afternoon. A girl with a basket of herbs stops on the path: someone is lying face-down in the moss, not moving. She drops the basket and kneels beside them.）\nHey! Hey, can you hear me?\n（She shakes their shoulder, then checks for breathing, for blood.）\nOkay... you\'re breathing. Don\'t sit up too fast, alright? Just... open your eyes. Can you tell me your name?',
         ja: '（小妖精の森、夕方前。薬草の籠を抱えた少女が小道で足を止める。苔の上に誰かがうつ伏せで倒れて、動かない。籠を放り出して、そばに膝をつく。）\nねえ！　ねえ、聞こえる？\n（肩を揺すり、それから息と血の有無を確かめる。）\nよかった……息はしてる。急に起き上がっちゃだめだよ？　ゆっくり……目、開けられる？　名前、言える？',
         zh: '（小妖精之森，傍晚前。提着药草篮的少女在小路上停下：有人趴在苔藓上一动不动。她放下篮子，跪到旁边。）\n喂！喂，听得见吗？\n（她摇了摇对方的肩膀，然后检查呼吸和有没有流血。）\n还好……还有呼吸。别急着坐起来，好吗？慢慢来……能睁开眼睛吗？能告诉我你的名字吗？'
       },
       prompt: [
-        '状況：ライザは材料集めの途中、小妖精の森の小道で、見知らぬ人がうつ伏せに倒れているのを見つけた。今は起こして、怪我の有無を確かめているところ。',
+        '状況：ライザは材料集めの途中、小妖精の森の小道で、見知らぬ人がうつ伏せに倒れているのを見つけた。完全な初対面であり、相手の名前も身元も一切知らない他人。今は起こして、怪我の有無を確かめているところ。チュートリアルは行わない。',
         'ライザの見立て（本人の前提）：本土から来た旅人か港の客が、道に迷って倒れた／転んだ／暑さにやられた／魔物に遭った／港で飲み過ぎた、のどれか。それ以外の可能性は考えない。',
         'ライザの優先順位：①息と怪我 ②水を飲ませる、急に立たせない ③名前と、何があったか ④安全な場所（一番近いのは自分のアトリエ）へ。事情の詮索は後回し。',
         '相手が変な言葉（電話、電車、会社など）を使っても、「頭を打ったのかも」「本土の言い回しかな」と流す。出身や来歴を当てにいかない。「遠くから来たんだね」と決めつけない。',
@@ -200,8 +226,8 @@
     try { v = String((Config.section('profile') || {}).storyStart || ''); } catch (e) {}
     if (!v) return 'daily';
     var all = function (k) { try { return (window.I18n && I18n.all) ? I18n.all(k) : []; } catch (e) { return []; } };
-    if (v === 'isekai' || all('onb.q06.c3').indexOf(v) !== -1) return 'isekai';
-    if (v === 'longtime' || all('onb.q06.c2').indexOf(v) !== -1) return 'longtime';
+    if (v === 'isekai' || all('onb.q06.c3').indexOf(v) !== -1 || /forest|森|异界|異世界/i.test(v)) return 'isekai';
+    if (v === 'longtime' || all('onb.q06.c2').indexOf(v) !== -1 || /long|長い|很久|friend/i.test(v)) return 'longtime';
     return 'daily';
   }
   function scenarioSection(id) {
@@ -446,6 +472,7 @@
     var ex = extractState(body);
     return {
       emotion: dest.emotion, attitude: dest.attitude, nsfw: dest.nsfw,
+      stage: dest.stage, tod: dest.tod,
       text: ex.text, state: attachSceneTags(ex.state, dest)
     };
   }

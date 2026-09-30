@@ -234,6 +234,11 @@ select{background:rgba(20,14,18,.9);border:1px solid var(--line);border-radius:9
 .money-pill b{font-size:15px;font-weight:700;letter-spacing:.03em;color:#fff}
 /* Level is not on the official stage; it stays in the status sheet. */
 .lv-pill{display:none}
+.hud-autosave{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+  border-radius:50%;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.1);
+  font-size:14px;opacity:0;transform:scale(.8);transition:opacity .3s ease,transform .3s ease;
+  pointer-events:none;backdrop-filter:blur(8px)}
+.hud-autosave.flash{opacity:1;transform:scale(1.05)}
 
 /* right round buttons — posture (dual-posture stages only), history ⇧,
    quest flag, bag (the official circle stack over the stage edge) */
@@ -534,6 +539,51 @@ body:not(.lang-cjk) .msg.narration{font-style:italic}
 .onb-progress{font-size:12px;color:var(--gold);letter-spacing:.08em;margin-bottom:8px}
 .onb-card h2{margin:0 0 6px;font-size:18px}
 .onb-sub{color:var(--dim);font-size:13px;line-height:1.6;margin:0 0 14px}
+
+/* Start Menu (Save Slots + API Settings) */
+.start-menu-card{width:100%;max-width:480px;max-height:92vh;display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;text-align:left;box-shadow:0 12px 36px rgba(0,0,0,.6)}
+.start-menu-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.start-menu-head h2{margin:0;font-size:18px;color:#fff}
+.start-menu-scroll{overflow-y:auto;padding-right:6px;flex:1;display:flex;flex-direction:column;gap:14px}
+.start-section{background:rgba(255,255,255,.02);border:1px solid rgba(232,180,92,.18);border-radius:14px;padding:14px}
+.start-sec-title{font-size:14.5px;font-weight:700;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.start-slots-list{display:flex;flex-direction:column;gap:10px}
+.start-slot-item{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;transition:.18s ease}
+.start-slot-item:hover{border-color:var(--gold);background:rgba(232,180,92,.06)}
+.start-slot-item.active-slot{border-color:var(--gold);box-shadow:0 0 0 1px rgba(232,180,92,.4)}
+.start-slot-item.empty-slot{border-style:dashed;opacity:.85;text-align:center;padding:16px}
+.start-slot-item.empty-slot:hover{opacity:1;border-color:var(--gold)}
+.slot-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.slot-title{font-weight:700;font-size:14px;color:#fff}
+.slot-badge{font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(232,180,92,.16);color:var(--gold)}
+.slot-details{font-size:12px;color:var(--dim);line-height:1.5}
+.slot-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05)}
+
+/* Single Scrollable Onboarding */
+.onb-scroll-card{width:100%;max-width:500px;max-height:92vh;display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;text-align:left;box-shadow:0 12px 36px rgba(0,0,0,.6)}
+.onb-head{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.onb-head h2{margin:0 0 6px;font-size:18px;color:#fff}
+.onb-scroll-body{overflow-y:auto;padding-right:6px;flex:1;display:flex;flex-direction:column;gap:16px}
+.onb-group{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px}
+.onb-group-title{font-size:14px;font-weight:700;color:var(--gold);margin-bottom:4px}
+.onb-group-sub{font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.4}
+.onb-foot{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.scenario-options{display:flex;flex-direction:column;gap:8px}
+.scenario-card{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;transition:.15s ease}
+.scenario-card:hover{border-color:var(--gold)}
+.scenario-card.on{border-color:var(--gold);background:rgba(232,180,92,.1);box-shadow:0 0 0 1px rgba(232,180,92,.3)}
+.scenario-card .sc-title{font-weight:700;font-size:13.5px;color:#fff;margin-bottom:4px}
+.scenario-card .sc-desc{font-size:12px;color:var(--dim);line-height:1.4}
+
+/* Prologue Card */
+.pro-card{width:100%;max-width:440px;background:rgba(12,8,14,.92);border:1px solid var(--gold);
+  border-radius:18px;padding:22px;text-align:center;box-shadow:0 12px 36px rgba(0,0,0,.7)}
+.pro-head{margin-bottom:12px}
+.pro-head h3{margin:4px 0 0;font-size:16px;color:var(--gold)}
+.pro-sub{font-size:15px;line-height:1.65;color:#fff;min-height:64px;margin:16px 0;font-style:italic;display:flex;align-items:center;justify-content:center}
+
 /* The prologue narration screen ships its own art in the pack
    (images/onboarding_prologue_bg.png — the dusk hillside over the island).
    A scrim keeps the step counter readable over it. This used to be a made-up
@@ -789,3 +839,41 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 #view-world.map-mode #world-npcs{display:none}
 #view-world.map-mode #world-body{display:block}
 #view-world.map-mode #world-fields{position:absolute;inset:0}
+
+/* ------------------------------------------------ Debug Stats Panel */
+#debug-stats-panel{position:absolute;top:calc(var(--bar-h) + 12px);left:14px;right:14px;max-width:380px;
+  max-height:60vh;z-index:40;background:rgba(12,10,16,.94);border:1px solid var(--gold);
+  border-radius:14px;backdrop-filter:blur(16px);box-shadow:0 12px 36px rgba(0,0,0,.75);
+  display:flex;flex-direction:column;overflow:hidden;font-size:11.5px;color:#ddd;transition:max-height .25s ease}
+#debug-stats-panel.minimized{max-height:42px}
+.dbg-head, .dbg-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  background:rgba(232,180,92,.1);border-bottom:1px solid rgba(232,180,92,.25)}
+.dbg-title{font-weight:700;font-size:12.5px;color:var(--gold);display:flex;align-items:center;gap:6px}
+.dbg-acts, .dbg-actions{display:flex;gap:6px}
+.dbg-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:6px;
+  color:#fff;width:24px;height:24px;font-size:14px;cursor:pointer;display:grid;place-items:center;line-height:1}
+.dbg-btn:hover{background:rgba(232,180,92,.3);border-color:var(--gold)}
+.dbg-body{padding:12px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.dbg-sec{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:8px 10px}
+.dbg-sec-title{font-weight:700;font-size:11px;color:var(--gold);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+.dbg-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
+.dbg-item{display:flex;justify-content:space-between;gap:4px}
+.dbg-k{color:var(--dim)}
+.dbg-v{font-weight:600;color:#fff}
+.dbg-tier-list{display:flex;flex-direction:column;gap:5px}
+.dbg-tier-row{font-size:11px;display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.dbg-tag{padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(255,255,255,.06);color:var(--dim)}
+.dbg-tag.on{background:rgba(76,175,80,.25);color:#81c784;border:1px solid rgba(76,175,80,.4)}
+.dbg-tag.off{background:rgba(244,67,54,.15);color:#e57373;border:1px solid rgba(244,67,54,.25)}
+.dbg-tags-row{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.dbg-chip{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:10.5px;color:#eee}
+.dbg-json{margin:0;padding:6px;background:rgba(0,0,0,.5);border-radius:6px;font-family:monospace;font-size:10.5px;color:#a5d6a7;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:90px}
+.dbg-json.warn{color:#ffb74d}
+
+/* ------------------------------------------------ Bump Button */
+#btn-bump{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
+  background:none;border:none;cursor:pointer;transition:transform .15s ease,opacity .15s}
+#btn-bump:hover{transform:scale(1.1)}
+#btn-bump:active{transform:scale(0.92)}
+#btn-bump:disabled{opacity:.35;cursor:not-allowed}
+#btn-bump img{width:18px;height:18px;filter:brightness(0) invert(1)}
